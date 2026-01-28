@@ -1,0 +1,279 @@
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Music, Headphones, Sparkles } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { SearchBar } from "@/components/SearchBar";
+import { SearchResults } from "@/components/SearchResults";
+import { LoadingBar } from "@/components/LoadingBar";
+import { Library } from "@/components/Library";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { saveSong, getSongByVideoId, initDB } from "@/lib/db";
+import type { YouTubeVideo, DownloadProgress, SongMetadata } from "@shared/schema";
+
+export default function Home() {
+  const [searchResults, setSearchResults] = useState<YouTubeVideo[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<Map<string, DownloadProgress>>(new Map());
+  const [downloadedVideos, setDownloadedVideos] = useState<Set<string>>(new Set());
+  const [libraryRefresh, setLibraryRefresh] = useState(0);
+  const [activeTab, setActiveTab] = useState("search");
+  const { toast } = useToast();
+
+  useEffect(() => {
+    initDB().catch(console.error);
+  }, []);
+
+  const handleSearch = useCallback(async (query: string, type: "audio" | "lyric" | "both") => {
+    setIsSearching(true);
+    setSearchResults([]);
+
+    try {
+      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&type=${type}`);
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Search failed");
+      }
+
+      const data = await response.json();
+      setSearchResults(data.results);
+
+      if (data.results.length === 0) {
+        toast({
+          title: "No results found",
+          description: "Try a different search term or filter.",
+        });
+      }
+    } catch (error) {
+      console.error("Search error:", error);
+      toast({
+        title: "Search failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  }, [toast]);
+
+  const handleDownload = useCallback(async (video: YouTubeVideo) => {
+    const existing = await getSongByVideoId(video.videoId);
+    if (existing) {
+      toast({
+        title: "Already downloaded",
+        description: "This song is already in your library.",
+      });
+      setDownloadedVideos(prev => new Set(prev).add(video.videoId));
+      return;
+    }
+
+    setDownloadProgress(prev => {
+      const next = new Map(prev);
+      next.set(video.videoId, {
+        videoId: video.videoId,
+        progress: 0,
+        status: "pending",
+        message: "Starting download...",
+      });
+      return next;
+    });
+
+    try {
+      const response = await fetch("/api/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoId: video.videoId,
+          title: video.title,
+          thumbnail: video.thumbnail,
+          channelTitle: video.channelTitle,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Download failed");
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error("Stream not available");
+      }
+
+      let downloadUrl = "";
+      let metadata = { artist: "", album: "", genre: "" };
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              setDownloadProgress(prev => {
+                const next = new Map(prev);
+                next.set(video.videoId, {
+                  videoId: video.videoId,
+                  progress: data.progress || 0,
+                  status: data.status || "downloading",
+                  message: data.message || "Processing...",
+                  downloadUrl: data.downloadUrl,
+                });
+                return next;
+              });
+
+              if (data.downloadUrl) {
+                downloadUrl = data.downloadUrl;
+              }
+              if (data.metadata) {
+                metadata = data.metadata;
+              }
+
+              if (data.status === "complete" && data.downloadUrl) {
+                const songData: SongMetadata = {
+                  id: crypto.randomUUID(),
+                  videoId: video.videoId,
+                  title: video.title,
+                  artist: metadata.artist || undefined,
+                  album: metadata.album || undefined,
+                  genre: metadata.genre || undefined,
+                  thumbnail: video.thumbnail,
+                  downloadedAt: new Date().toISOString(),
+                  filePath: data.downloadUrl,
+                };
+
+                await saveSong(songData);
+                setDownloadedVideos(prev => new Set(prev).add(video.videoId));
+                setLibraryRefresh(prev => prev + 1);
+
+                toast({
+                  title: "Download complete",
+                  description: `"${video.title}" has been added to your library.`,
+                });
+
+                const link = document.createElement("a");
+                link.href = data.downloadUrl;
+                link.download = `${video.title}.mp3`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }
+            } catch (e) {
+              console.error("Error parsing SSE data:", e);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Download error:", error);
+      
+      setDownloadProgress(prev => {
+        const next = new Map(prev);
+        next.set(video.videoId, {
+          videoId: video.videoId,
+          progress: 0,
+          status: "error",
+          message: error instanceof Error ? error.message : "Download failed",
+        });
+        return next;
+      });
+
+      toast({
+        title: "Download failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary to-accent blur-lg opacity-50" />
+                <div className="relative p-2 rounded-xl bg-gradient-to-r from-primary to-accent">
+                  <Headphones className="h-6 w-6 text-white" />
+                </div>
+              </div>
+              <div>
+                <h1 className="text-xl font-bold gradient-text">SoundGrab</h1>
+                <p className="text-xs text-muted-foreground">YouTube to MP3</p>
+              </div>
+            </div>
+            <ThemeToggle />
+          </div>
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-8">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-4">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium text-primary">Free YouTube Audio Downloader</span>
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-3">
+            Download Music from{" "}
+            <span className="gradient-text">YouTube</span>
+          </h2>
+          <p className="text-muted-foreground max-w-lg mx-auto">
+            Search for any song, lyric video, or audio track and download it as an MP3 file. 
+            Your downloads are saved locally.
+          </p>
+        </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
+            <TabsTrigger value="search" className="gap-2" data-testid="tab-search">
+              <Music className="h-4 w-4" />
+              Search
+            </TabsTrigger>
+            <TabsTrigger value="library" className="gap-2" data-testid="tab-library">
+              <Headphones className="h-4 w-4" />
+              Library
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="search" className="mt-0">
+            <SearchBar onSearch={handleSearch} isLoading={isSearching} />
+            <LoadingBar 
+              isLoading={isSearching} 
+              message="Searching YouTube for music..." 
+            />
+            <SearchResults
+              results={searchResults}
+              onDownload={handleDownload}
+              downloadProgress={downloadProgress}
+              downloadedVideos={downloadedVideos}
+            />
+          </TabsContent>
+
+          <TabsContent value="library" className="mt-0">
+            <Library refreshTrigger={libraryRefresh} />
+          </TabsContent>
+        </Tabs>
+      </main>
+
+      <footer className="border-t border-border/50 mt-16">
+        <div className="container mx-auto px-4 py-6">
+          <p className="text-center text-sm text-muted-foreground">
+            SoundGrab - Download audio from YouTube for personal use only. 
+            Respect copyright and artist rights.
+          </p>
+        </div>
+      </footer>
+    </div>
+  );
+}
