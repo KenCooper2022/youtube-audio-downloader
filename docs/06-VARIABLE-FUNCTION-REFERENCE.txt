@@ -1,5 +1,5 @@
 ================================================================================
-SOUNDGRAB - VARIABLE AND FUNCTION REFERENCE
+AUDIO DOWNLOADER - VARIABLE AND FUNCTION REFERENCE
 ================================================================================
 Document Version: 1.0
 Last Updated: January 28, 2026

@@ -1,5 +1,5 @@
 ================================================================================
-SOUNDGRAB - DESIGN DECISIONS AND RATIONALE
+AUDIO DOWNLOADER - DESIGN DECISIONS AND RATIONALE
 ================================================================================
 Document Version: 1.0
 Last Updated: January 28, 2026

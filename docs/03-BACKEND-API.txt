@@ -1,5 +1,5 @@
 ================================================================================
-SOUNDGRAB - BACKEND API DOCUMENTATION
+AUDIO DOWNLOADER - BACKEND API DOCUMENTATION
 ================================================================================
 Document Version: 1.0
 Last Updated: January 28, 2026

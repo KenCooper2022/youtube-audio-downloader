@@ -1,5 +1,5 @@
 ================================================================================
-SOUNDGRAB - FRONTEND COMPONENTS DOCUMENTATION
+AUDIO DOWNLOADER - FRONTEND COMPONENTS DOCUMENTATION
 ================================================================================
 Document Version: 1.0
 Last Updated: January 28, 2026
@@ -234,15 +234,13 @@ The download attribute suggests filename to browser.
 
 RENDER STRUCTURE:
 -----------------
-- Header (sticky, blur backdrop)
-  - Logo with gradient background
-  - ThemeToggle button
+- ThemeToggle (fixed top-right corner)
 - Main content
-  - Hero section (badge, title, description)
   - Tabs container
     - Search tab: SearchBar, LoadingBar, SearchResults
     - Library tab: Library component
-- Footer
+
+Note: Minimal UI with no header/footer for local tool usage.
 
 ================================================================================
 3. FEATURE COMPONENTS

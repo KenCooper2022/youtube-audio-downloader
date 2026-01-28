@@ -1,5 +1,5 @@
 ================================================================================
-SOUNDGRAB - TECHNICAL DOCUMENTATION INDEX
+AUDIO DOWNLOADER - TECHNICAL DOCUMENTATION INDEX
 ================================================================================
 Last Updated: January 28, 2026
 
@@ -8,7 +8,7 @@ DOCUMENT OVERVIEW
 ================================================================================
 
 This documentation package provides comprehensive technical reference for the
-SoundGrab YouTube audio downloader application. Each document serves a specific
+Audio Downloader YouTube audio downloader application. Each document serves a specific
 purpose and is intended to be read by engineers who will maintain, debug, or
 extend the codebase.
 

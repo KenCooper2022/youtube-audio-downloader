@@ -1,5 +1,5 @@
 ================================================================================
-SOUNDGRAB - ARCHITECTURE OVERVIEW
+AUDIO DOWNLOADER - ARCHITECTURE OVERVIEW
 ================================================================================
 Document Version: 1.0
 Last Updated: January 28, 2026
@@ -19,7 +19,7 @@ TABLE OF CONTENTS
 1. SYSTEM OVERVIEW
 ================================================================================
 
-SoundGrab is a full-stack web application that enables users to search for 
+Audio Downloader is a full-stack web application that enables users to search for 
 music on YouTube and download audio tracks as MP3 files. The application 
 implements a client-server architecture with the following core capabilities:
 

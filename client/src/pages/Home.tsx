@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Music, Headphones, Download } from "lucide-react";
+import { Music, Headphones } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SearchBar } from "@/components/SearchBar";
@@ -198,39 +198,13 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-50 border-b border-border bg-background">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 border border-border rounded-md bg-card">
-                <Download className="h-5 w-5 text-foreground" />
-              </div>
-              <div>
-                <h1 className="text-lg font-medium tracking-tight text-foreground uppercase">Audio Downloader</h1>
-                <p className="text-xs text-muted-foreground tracking-wider">MP3_EXTRACTION</p>
-              </div>
-            </div>
-            <ThemeToggle />
-          </div>
-        </div>
-      </header>
+      <div className="fixed top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
 
       <main className="container mx-auto px-4 py-8">
-        <div className="text-center mb-10">
-          <p className="text-xs text-muted-foreground tracking-widest uppercase mb-2">
-            // YOUTUBE AUDIO DOWNLOADER
-          </p>
-          <h2 className="text-2xl font-medium text-foreground tracking-tight mb-3">
-            Extract Audio from YouTube
-          </h2>
-          <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-            Search for songs, lyric videos, or audio tracks. 
-            Download as MP3 files. Library stored locally.
-          </p>
-        </div>
-
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-sm mx-auto grid-cols-2 mb-8">
+          <TabsList className="grid w-full max-w-sm mx-auto grid-cols-2 mb-6">
             <TabsTrigger value="search" className="gap-2 text-xs uppercase tracking-wider" data-testid="tab-search">
               <Music className="h-3.5 w-3.5" />
               Search
@@ -260,14 +234,6 @@ export default function Home() {
           </TabsContent>
         </Tabs>
       </main>
-
-      <footer className="border-t border-border mt-16">
-        <div className="container mx-auto px-4 py-6">
-          <p className="text-center text-xs text-muted-foreground tracking-wider uppercase">
-            Personal use only // Respect copyright
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

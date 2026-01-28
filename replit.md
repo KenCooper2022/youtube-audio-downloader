@@ -27,7 +27,7 @@ Preferred communication style: Simple, everyday language.
 - **Framework**: React with TypeScript
 - **Routing**: Wouter for lightweight client-side routing
 - **State Management**: TanStack React Query for server state, local React state for UI
-- **Styling**: Tailwind CSS with custom theme configuration (professional beige/white color scheme with IBM Plex Mono font)
+- **Styling**: Tailwind CSS with custom theme configuration (clean white/gray color scheme with IBM Plex Mono font)
 - **UI Components**: shadcn/ui component library built on Radix UI primitives
 - **Build Tool**: Vite for development and production builds
 

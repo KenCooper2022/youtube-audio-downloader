@@ -1,5 +1,5 @@
 ================================================================================
-SOUNDGRAB - DATA SCHEMAS AND TYPE DEFINITIONS
+AUDIO DOWNLOADER - DATA SCHEMAS AND TYPE DEFINITIONS
 ================================================================================
 Document Version: 1.0
 Last Updated: January 28, 2026

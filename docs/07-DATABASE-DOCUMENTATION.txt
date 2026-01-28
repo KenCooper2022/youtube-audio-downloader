@@ -1,6 +1,6 @@
 ================================================================================
                     DATABASE DOCUMENTATION
-                    SoundGrab Application
+                    Audio Downloader Application
 ================================================================================
 
 This document provides comprehensive documentation about the PostgreSQL database
@@ -10,7 +10,7 @@ structure, SQL syntax, and how the application code interfaces with the database
 1. DATABASE OVERVIEW
 ================================================================================
 
-SoundGrab uses PostgreSQL (via Replit's built-in Neon-backed database) to store
+Audio Downloader uses PostgreSQL (via Replit's built-in Neon-backed database) to store
 song metadata for downloaded audio files. The database is accessed through
 Drizzle ORM, which provides type-safe SQL queries.
 
