@@ -1,0 +1,256 @@
+================================================================================
+SOUNDGRAB - ARCHITECTURE OVERVIEW
+================================================================================
+Document Version: 1.0
+Last Updated: January 28, 2026
+Purpose: Complete system architecture documentation for engineering reference
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+1. System Overview
+2. Technology Stack
+3. Directory Structure
+4. Data Flow Architecture
+5. Component Interaction Diagram
+6. Design Philosophy
+
+================================================================================
+1. SYSTEM OVERVIEW
+================================================================================
+
+SoundGrab is a full-stack web application that enables users to search for 
+music on YouTube and download audio tracks as MP3 files. The application 
+implements a client-server architecture with the following core capabilities:
+
+Primary Functions:
+- YouTube video search via Google's YouTube Data API v3
+- Audio extraction and conversion using yt-dlp command-line tool
+- Real-time download progress streaming via Server-Sent Events (SSE)
+- Client-side persistent storage using IndexedDB
+- Metadata extraction from video titles (artist, album, genre)
+
+The system operates as a monolithic application with clear separation between
+frontend (React) and backend (Express) layers, connected through RESTful API
+endpoints.
+
+================================================================================
+2. TECHNOLOGY STACK
+================================================================================
+
+FRONTEND LAYER:
+---------------
+Framework:        React 18.x with TypeScript
+Build Tool:       Vite (development and production builds)
+Routing:          Wouter (lightweight client-side router, ~1KB)
+State Management: 
+  - TanStack React Query for server state
+  - React useState/useEffect for local UI state
+Styling:          
+  - Tailwind CSS for utility-first styling
+  - CSS custom properties for theming
+  - shadcn/ui component library (Radix UI primitives)
+Storage:          IndexedDB (via native browser API)
+
+BACKEND LAYER:
+--------------
+Runtime:          Node.js 20.x
+Framework:        Express.js 5.x with TypeScript
+HTTP Server:      Node.js native http module
+External Tools:   
+  - yt-dlp (YouTube audio extraction)
+  - FFmpeg (audio format conversion)
+
+SHARED LAYER:
+-------------
+Validation:       Zod (runtime schema validation)
+Types:            TypeScript interfaces derived from Zod schemas
+
+EXTERNAL SERVICES:
+------------------
+YouTube Data API v3: Video search functionality
+  - Endpoint: https://www.googleapis.com/youtube/v3/search
+  - Authentication: API key (GOOGLE_API_KEY environment variable)
+  - Quota: 10,000 units/day (100 units per search request)
+
+================================================================================
+3. DIRECTORY STRUCTURE
+================================================================================
+
+project-root/
+├── client/                      # Frontend application
+│   ├── index.html               # HTML entry point
+│   ├── public/                  # Static assets
+│   │   └── favicon.png          # Browser favicon
+│   └── src/                     # Source code
+│       ├── main.tsx             # React entry point, mounts App
+│       ├── App.tsx              # Root component, routing setup
+│       ├── index.css            # Global styles, theme variables
+│       ├── components/          # Reusable UI components
+│       │   ├── ui/              # shadcn/ui base components
+│       │   ├── ThemeToggle.tsx  # Dark/light mode toggle
+│       │   ├── SearchBar.tsx    # Search input with type filter
+│       │   ├── SearchResults.tsx # Video result cards
+│       │   ├── LoadingBar.tsx   # Progress indicator
+│       │   └── Library.tsx      # Downloaded songs view
+│       ├── pages/               # Route-level components
+│       │   ├── Home.tsx         # Main application page
+│       │   └── not-found.tsx    # 404 error page
+│       ├── hooks/               # Custom React hooks
+│       │   ├── use-toast.ts     # Toast notification hook
+│       │   └── use-mobile.tsx   # Mobile detection hook
+│       └── lib/                 # Utility libraries
+│           ├── db.ts            # IndexedDB operations
+│           ├── queryClient.ts   # React Query configuration
+│           └── utils.ts         # General utilities (cn function)
+│
+├── server/                      # Backend application
+│   ├── index.ts                 # Server entry point
+│   ├── routes.ts                # API route definitions
+│   ├── storage.ts               # Storage interface (unused in MVP)
+│   ├── vite.ts                  # Vite dev server integration
+│   └── static.ts                # Static file serving
+│
+├── shared/                      # Shared code between client/server
+│   └── schema.ts                # Zod schemas and TypeScript types
+│
+├── docs/                        # Technical documentation
+│   └── *.txt                    # Documentation files
+│
+├── downloads/                   # Downloaded MP3 files (created at runtime)
+│
+├── tailwind.config.ts           # Tailwind CSS configuration
+├── vite.config.ts               # Vite build configuration
+├── tsconfig.json                # TypeScript configuration
+├── package.json                 # NPM dependencies and scripts
+└── drizzle.config.ts            # Database configuration (future use)
+
+================================================================================
+4. DATA FLOW ARCHITECTURE
+================================================================================
+
+SEARCH FLOW:
+------------
+1. User enters query in SearchBar component
+2. SearchBar calls onSearch callback with (query, type) parameters
+3. Home.tsx handleSearch function initiates fetch to /api/search
+4. Server receives request, validates query parameter
+5. Server constructs YouTube API request with modified query:
+   - "audio" type: appends "official audio" to query
+   - "lyric" type: appends "lyric video" to query
+   - "both" type: appends "audio OR lyric video" to query
+6. Server makes HTTPS request to YouTube Data API
+7. YouTube returns JSON response with video items
+8. Server transforms response, extracting:
+   - videoId: Unique YouTube video identifier
+   - title: Video title
+   - channelTitle: Channel/artist name
+   - thumbnail: High-quality thumbnail URL
+   - publishedAt: Upload date
+9. Server sends JSON response to client
+10. Client updates searchResults state, triggering re-render
+11. SearchResults component renders video cards
+
+DOWNLOAD FLOW:
+--------------
+1. User clicks "Download MP3" button on SearchResults card
+2. Home.tsx handleDownload function initiates POST to /api/download
+3. Server opens Server-Sent Events (SSE) stream
+4. Server spawns yt-dlp subprocess with arguments:
+   - -x: Extract audio only
+   - --audio-format mp3: Convert to MP3
+   - --audio-quality 0: Best quality
+   - --newline: Line-buffered output for progress parsing
+5. Server reads yt-dlp stdout, parsing progress percentages
+6. Server sends SSE messages with progress updates
+7. Client receives SSE messages, updates downloadProgress state
+8. SearchResults re-renders with progress bar
+9. yt-dlp completes, server verifies file exists
+10. Server sends final SSE message with downloadUrl
+11. Client saves song metadata to IndexedDB
+12. Client triggers automatic file download via anchor element
+13. Client adds videoId to downloadedVideos set
+
+LIBRARY FLOW:
+-------------
+1. User switches to Library tab
+2. Library component mounts, calls getAllSongs()
+3. IndexedDB transaction reads all records from "songs" store
+4. Records sorted by downloadedAt (newest first)
+5. Component renders song cards with metadata
+6. Delete button triggers deleteSong() -> IndexedDB delete
+
+================================================================================
+5. COMPONENT INTERACTION DIAGRAM
+================================================================================
+
+                    ┌─────────────────────────────────────────┐
+                    │              App.tsx                     │
+                    │  - QueryClientProvider                   │
+                    │  - TooltipProvider                       │
+                    │  - Toaster                               │
+                    │  - Router (wouter Switch)                │
+                    └─────────────────┬───────────────────────┘
+                                      │
+                    ┌─────────────────▼───────────────────────┐
+                    │              Home.tsx                    │
+                    │  - State: searchResults, downloadProgress│
+                    │  - Callbacks: handleSearch, handleDownload│
+                    │  - Manages all child component props     │
+                    └─────────────────┬───────────────────────┘
+                                      │
+        ┌─────────────────────────────┼─────────────────────────────┐
+        │                             │                             │
+┌───────▼───────┐           ┌────────▼────────┐           ┌────────▼────────┐
+│  SearchBar    │           │  SearchResults  │           │    Library      │
+│  - Input      │           │  - Video cards  │           │  - Song cards   │
+│  - Type select│           │  - Progress bars│           │  - Delete btn   │
+│  - Submit btn │           │  - Download btns│           │  - IndexedDB    │
+└───────────────┘           └─────────────────┘           └─────────────────┘
+
+================================================================================
+6. DESIGN PHILOSOPHY
+================================================================================
+
+SEPARATION OF CONCERNS:
+-----------------------
+The architecture strictly separates:
+- Presentation logic (React components)
+- Business logic (Home.tsx handlers, server routes)
+- Data persistence (IndexedDB, file system)
+- External service integration (YouTube API, yt-dlp)
+
+This separation enables:
+- Independent testing of each layer
+- Easy replacement of components (e.g., swap IndexedDB for SQLite)
+- Clear ownership boundaries for team development
+
+CLIENT-SIDE STORAGE DECISION:
+-----------------------------
+IndexedDB was chosen over server-side database because:
+1. Downloaded songs are personal to each user's browser session
+2. No user authentication required for MVP
+3. Eliminates need for database server infrastructure
+4. Works offline after initial page load
+5. Simplifies deployment (no database migrations)
+
+STREAMING ARCHITECTURE (SSE):
+-----------------------------
+Server-Sent Events chosen over WebSockets because:
+1. Unidirectional communication (server → client only)
+2. Simpler protocol (HTTP-based, no handshake)
+3. Automatic reconnection built into browser API
+4. Sufficient for progress updates (no bidirectional need)
+5. Works through most proxies without configuration
+
+MONOREPO STRUCTURE:
+-------------------
+Single repository with shared/ directory because:
+1. Type safety across client/server boundary
+2. Single source of truth for data schemas
+3. Simplified deployment (one build process)
+4. Atomic commits for full-stack changes
+
+================================================================================
+END OF DOCUMENT
+================================================================================

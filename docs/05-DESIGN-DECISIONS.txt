@@ -1,0 +1,567 @@
+================================================================================
+SOUNDGRAB - DESIGN DECISIONS AND RATIONALE
+================================================================================
+Document Version: 1.0
+Last Updated: January 28, 2026
+Purpose: Comprehensive documentation of architectural decisions, trade-offs,
+         and reasoning for engineering reference
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+1. Technology Selection Decisions
+2. Architecture Decisions
+3. Data Storage Decisions
+4. UI/UX Design Decisions
+5. Security Decisions
+6. Performance Decisions
+7. Future Considerations
+
+================================================================================
+1. TECHNOLOGY SELECTION DECISIONS
+================================================================================
+
+DECISION: React with TypeScript for Frontend
+---------------------------------------------
+ALTERNATIVES CONSIDERED:
+- Vue.js: Excellent, but team familiarity with React higher
+- Svelte: Smaller bundles, but less ecosystem support
+- Vanilla JS: Too verbose for complex state management
+- Angular: Too heavy for application scope
+
+RATIONALE:
+1. TypeScript provides compile-time safety for complex data flows
+2. React's component model maps well to application features
+3. Large ecosystem of compatible libraries (shadcn/ui, TanStack Query)
+4. Vite provides excellent DX with fast HMR
+
+TRADE-OFFS:
++ Strong typing catches errors early
++ Component reusability high
+- Bundle size larger than Svelte (~40KB React vs ~10KB Svelte)
+- Learning curve for TypeScript
+
+--------------------------------------------------------------------------------
+
+DECISION: Express.js for Backend
+--------------------------------
+ALTERNATIVES CONSIDERED:
+- Fastify: Faster, but less documentation
+- Koa: Minimalist, but requires more boilerplate
+- Hono: Modern, but less mature ecosystem
+- NestJS: Enterprise-grade, but overkill for scope
+
+RATIONALE:
+1. Express v5 provides modern async/await support
+2. Extensive middleware ecosystem
+3. Simple route definition matches API needs
+4. Easy SSE (Server-Sent Events) implementation
+
+TRADE-OFFS:
++ Simple, well-documented
++ Huge ecosystem
+- Slower than Fastify for high-throughput
+- No built-in validation (we use Zod)
+
+--------------------------------------------------------------------------------
+
+DECISION: yt-dlp for Audio Extraction
+-------------------------------------
+ALTERNATIVES CONSIDERED:
+- youtube-dl: Original tool, but development stalled
+- Node.js youtube-info: Limited features, no audio extraction
+- Paid APIs: Cost prohibitive, often lower quality
+- Browser-based extraction: Blocked by CORS
+
+RATIONALE:
+1. yt-dlp is actively maintained fork of youtube-dl
+2. Built-in audio extraction and conversion
+3. Handles various formats and codecs
+4. Progress output parseable for real-time updates
+5. Integrates with FFmpeg for MP3 conversion
+
+TRADE-OFFS:
++ Reliable extraction from any YouTube video
++ High-quality audio output
++ Free and open source
+- Requires system dependency (yt-dlp binary)
+- Subprocess spawning adds complexity
+- May break when YouTube changes (regularly updated)
+
+--------------------------------------------------------------------------------
+
+DECISION: wouter for Client-Side Routing
+----------------------------------------
+ALTERNATIVES CONSIDERED:
+- React Router v6: Most popular, but heavy (~10KB)
+- TanStack Router: Feature-rich, but complex setup
+- No router: Single page could work, but limits future
+
+RATIONALE:
+1. wouter is ~1KB (10x smaller than React Router)
+2. Simple API matches our needs (just 2 routes)
+3. Hook-based (`useLocation`) aligns with React patterns
+4. Easy to upgrade to React Router if needed later
+
+TRADE-OFFS:
++ Minimal bundle impact
++ Simple API
+- No data loaders
+- No nested routes (not needed currently)
+
+--------------------------------------------------------------------------------
+
+DECISION: Tailwind CSS with shadcn/ui
+-------------------------------------
+ALTERNATIVES CONSIDERED:
+- CSS Modules: Scoped but verbose
+- Styled Components: Runtime overhead
+- Chakra UI: Full component library, but opinionated
+- Material UI: Heavy, enterprise-focused
+
+RATIONALE:
+1. Tailwind's utility-first approach enables rapid iteration
+2. shadcn/ui provides accessible, customizable components
+3. Radix UI primitives (under shadcn) handle accessibility
+4. CSS custom properties enable theming without rebuilds
+
+TRADE-OFFS:
++ Fast development with utility classes
++ Components are copy-pasted, fully customizable
++ Tree-shaking eliminates unused styles
+- Initial learning curve for utility syntax
+- HTML can become verbose with many classes
+
+================================================================================
+2. ARCHITECTURE DECISIONS
+================================================================================
+
+DECISION: Monolithic Application Structure
+------------------------------------------
+ALTERNATIVES CONSIDERED:
+- Microservices: Separate search, download, storage services
+- Serverless: AWS Lambda for each function
+- BFF (Backend for Frontend): Dedicated API gateway
+
+RATIONALE:
+1. Application scope is small (3 API endpoints)
+2. Shared Vite setup serves both frontend and backend
+3. Single deployment unit simplifies operations
+4. No need for inter-service communication
+
+TRADE-OFFS:
++ Simple deployment
++ Easy local development
++ Shared types between client/server
+- Harder to scale individual components
+- Single point of failure
+
+--------------------------------------------------------------------------------
+
+DECISION: Server-Sent Events for Download Progress
+---------------------------------------------------
+ALTERNATIVES CONSIDERED:
+- WebSocket: Bidirectional, but overkill
+- Polling: Simple, but wastes resources
+- Long Polling: Works, but connection management complex
+- HTTP Streaming: Similar to SSE, but no standard
+
+RATIONALE:
+1. SSE is perfect for server→client streaming
+2. Built into browser (EventSource API)
+3. Automatic reconnection on disconnect
+4. Works through most proxies without configuration
+5. HTTP-based, no special protocol handling
+
+TRADE-OFFS:
++ Native browser support
++ Simple implementation
++ One-way is exactly what we need
+- Limited to UTF-8 text (fine for JSON)
+- Max 6 connections per domain in some browsers
+
+--------------------------------------------------------------------------------
+
+DECISION: Shared Schema Directory
+---------------------------------
+ALTERNATIVES CONSIDERED:
+- Duplicate types in client and server
+- Generate types from OpenAPI spec
+- Use JSON Schema with type generators
+
+RATIONALE:
+1. Single source of truth prevents drift
+2. Zod schemas work in both environments
+3. TypeScript paths alias makes imports clean
+4. Changes automatically propagate
+
+TRADE-OFFS:
++ No type synchronization issues
++ Refactoring updates both sides
+- Shared directory adds complexity to build
+- Must be careful about browser-incompatible imports
+
+================================================================================
+3. DATA STORAGE DECISIONS
+================================================================================
+
+DECISION: IndexedDB for Client-Side Storage
+-------------------------------------------
+ALTERNATIVES CONSIDERED:
+- localStorage: Limited to 5MB, no structured queries
+- SQLite (via sql.js): Complex setup, larger bundle
+- Server-side PostgreSQL: Requires authentication
+- Firebase: Adds external dependency
+
+RATIONALE:
+1. IndexedDB supports structured data and indexes
+2. Large storage quota (typically 50MB+)
+3. No server-side complexity for user data
+4. Works offline after initial load
+5. Browser-native, no additional library needed
+
+TRADE-OFFS:
++ Scales to thousands of songs
++ Index support for efficient queries
++ Transactional guarantees
+- Async API more complex than localStorage
+- Not shared across devices
+- Lost if user clears browser data
+
+--------------------------------------------------------------------------------
+
+DECISION: File System for Downloaded MP3s
+-----------------------------------------
+ALTERNATIVES CONSIDERED:
+- Store in database as BLOB
+- Cloud storage (S3, GCS)
+- Streaming directly to client
+
+RATIONALE:
+1. Local filesystem is simplest for MVP
+2. Files can be large (5-15MB per song)
+3. Native streaming via fs.createReadStream
+4. Easy to serve with proper headers
+
+TRADE-OFFS:
++ Simple implementation
++ No external services needed
++ Fast local access
+- Disk space limited
+- Files not shared between users
+- Must clean up old files manually
+
+--------------------------------------------------------------------------------
+
+DECISION: No User Authentication
+--------------------------------
+ALTERNATIVES CONSIDERED:
+- Replit Auth: Would enable user-specific libraries
+- OAuth (Google, GitHub): Familiar to users
+- Email/password: Traditional but complex
+
+RATIONALE:
+1. MVP focuses on core functionality
+2. Client-side storage eliminates need for accounts
+3. Reduces privacy concerns (no user data collected)
+4. Simpler architecture and deployment
+
+TRADE-OFFS:
++ No account management
++ No privacy policy needed
++ Faster development
+- Library not shared across devices
+- No backup/restore
+- Can't add social features
+
+================================================================================
+4. UI/UX DESIGN DECISIONS
+================================================================================
+
+DECISION: Dark Mode Default with Toggle
+---------------------------------------
+ALTERNATIVES CONSIDERED:
+- Light mode only: Simple but dated
+- System preference only: No manual control
+- Separate theme pages: Overcomplicated
+
+RATIONALE:
+1. Music apps traditionally use dark themes
+2. Reduces eye strain during extended use
+3. Makes magenta/cyan accents pop
+4. Toggle respects user preference
+
+IMPLEMENTATION:
+- localStorage persistence
+- Falls back to system preference
+- Instant toggle (no page reload)
+
+--------------------------------------------------------------------------------
+
+DECISION: Magenta/Cyan Color Palette
+------------------------------------
+ALTERNATIVES CONSIDERED:
+- Blue/Purple: Generic, not distinctive
+- Green/Yellow: Not music-associated
+- Red/Orange: Too aggressive
+
+RATIONALE:
+1. User specifically requested magenta/black/white/cyan
+2. Complementary colors (opposite on color wheel)
+3. High contrast for accessibility
+4. Vibrant, modern aesthetic
+
+COLOR VALUES:
+- Primary (Magenta): HSL(300, 100%, 50%) = #FF00FF
+- Accent (Cyan): HSL(180, 100%, 40-45%) = #00CCCC
+- Background: Near-black (4% lightness) in dark mode
+- Foreground: Near-white (98% lightness) in dark mode
+
+--------------------------------------------------------------------------------
+
+DECISION: Tabbed Interface (Search/Library)
+-------------------------------------------
+ALTERNATIVES CONSIDERED:
+- Single page with both views: Cluttered
+- Sidebar navigation: Overkill for 2 views
+- Separate pages: Loses context
+
+RATIONALE:
+1. Clean separation of concerns
+2. Tabs are familiar UI pattern
+3. State preserved when switching
+4. Easy to add more tabs later
+
+--------------------------------------------------------------------------------
+
+DECISION: Real-Time Progress Bar During Download
+-------------------------------------------------
+ALTERNATIVES CONSIDERED:
+- Simple spinner: No feedback on duration
+- Percentage text only: Less visual
+- Indeterminate bar: No progress indication
+
+RATIONALE:
+1. Downloads can take 10-30 seconds
+2. Visual progress reduces perceived wait
+3. Status text explains current phase
+4. Matches user expectation from other apps
+
+IMPLEMENTATION:
+- Animated gradient bar (magenta → cyan)
+- Text status below bar
+- Smooth width transition
+
+================================================================================
+5. SECURITY DECISIONS
+================================================================================
+
+DECISION: Path Traversal Protection
+-----------------------------------
+THREAT: Attacker requests /api/files/../../../etc/passwd
+
+MITIGATION:
+```typescript
+const safePath = path.resolve(filePath);
+if (!safePath.startsWith(path.resolve(DOWNLOAD_DIR))) {
+  return res.status(403).json({ message: "Access denied" });
+}
+```
+
+RATIONALE:
+1. path.resolve() converts to absolute path
+2. Check ensures file is within DOWNLOAD_DIR
+3. Returns 403 without revealing file existence
+
+--------------------------------------------------------------------------------
+
+DECISION: Filename Sanitization
+-------------------------------
+THREAT: Malicious video titles create harmful filenames
+
+MITIGATION:
+```typescript
+function sanitizeFilename(filename: string): string {
+  return filename
+    .replace(/[<>:"/\\|?*]/g, "")
+    .replace(/\s+/g, "_")
+    .substring(0, 100);
+}
+```
+
+RATIONALE:
+1. Removes characters invalid on Windows/Linux
+2. Spaces replaced for URL safety
+3. Length limited to prevent FS issues
+
+--------------------------------------------------------------------------------
+
+DECISION: API Key Server-Side Only
+----------------------------------
+THREAT: Exposed API key allows quota abuse
+
+MITIGATION:
+1. YouTube API key stored in environment variable
+2. Never sent to client
+3. All API calls made server-side
+
+RATIONALE:
+1. Client-side key would be visible in Network tab
+2. Malicious users could exhaust quota
+3. Server acts as proxy to hide key
+
+--------------------------------------------------------------------------------
+
+DECISION: Input Validation on Server
+------------------------------------
+THREAT: Malformed input causes crashes or unexpected behavior
+
+MITIGATION:
+1. Check required parameters exist
+2. Validate format before processing
+3. Return 400 for invalid input
+
+RATIONALE:
+1. Never trust client input
+2. Fail fast with clear error messages
+3. Prevent downstream issues
+
+================================================================================
+6. PERFORMANCE DECISIONS
+================================================================================
+
+DECISION: Stream MP3 Files Instead of Loading into Memory
+----------------------------------------------------------
+ALTERNATIVE: Read entire file into buffer, then send
+
+IMPLEMENTATION:
+```typescript
+const fileStream = fs.createReadStream(filePath);
+fileStream.pipe(res);
+```
+
+RATIONALE:
+1. MP3 files can be 5-15MB
+2. Streaming uses constant memory (~64KB buffer)
+3. Response starts immediately
+4. Scales to many concurrent downloads
+
+--------------------------------------------------------------------------------
+
+DECISION: Lazy Loading of Library Songs
+---------------------------------------
+ALTERNATIVE: Load all songs on app start
+
+IMPLEMENTATION:
+```typescript
+useEffect(() => {
+  loadSongs();
+}, [refreshTrigger]);
+```
+
+RATIONALE:
+1. Library only loaded when tab is active
+2. Faster initial page load
+3. Search functionality usable immediately
+
+--------------------------------------------------------------------------------
+
+DECISION: State Management with React useState
+----------------------------------------------
+ALTERNATIVES CONSIDERED:
+- Redux: Overkill for scope
+- Zustand: Good, but adds dependency
+- Context + useReducer: More boilerplate
+
+RATIONALE:
+1. All state lives in single component (Home)
+2. Prop drilling is minimal
+3. No complex state interactions
+4. Easy to understand and debug
+
+--------------------------------------------------------------------------------
+
+DECISION: Map and Set for Download Tracking
+-------------------------------------------
+ALTERNATIVE: Array with find/filter operations
+
+IMPLEMENTATION:
+```typescript
+const [downloadProgress, setDownloadProgress] = 
+  useState<Map<string, DownloadProgress>>(new Map());
+const [downloadedVideos, setDownloadedVideos] = 
+  useState<Set<string>>(new Set());
+```
+
+RATIONALE:
+1. Map provides O(1) lookup by videoId
+2. Set provides O(1) membership check
+3. Both maintain insertion order
+4. Immutable updates via new Map/Set
+
+================================================================================
+7. FUTURE CONSIDERATIONS
+================================================================================
+
+POTENTIAL ENHANCEMENTS:
+
+1. MUSIC METADATA API INTEGRATION
+   - Use MusicBrainz or Spotify API
+   - More accurate artist/album/genre
+   - Album artwork
+
+2. AUDIO PLAYER
+   - Play songs directly in browser
+   - Queue management
+   - Playlist support
+
+3. USER AUTHENTICATION
+   - Replit Auth integration
+   - Cross-device library sync
+   - Cloud storage for MP3s
+
+4. BATCH DOWNLOADS
+   - Download multiple songs at once
+   - Playlist URL support
+   - Queue management
+
+5. SEARCH PAGINATION
+   - Load more results
+   - Use nextPageToken from API
+   - Infinite scroll
+
+6. OFFLINE SUPPORT
+   - Service worker for caching
+   - PWA manifest
+   - Offline library access
+
+7. EXPORT/IMPORT
+   - Export library metadata
+   - Import to new browser/device
+   - Backup functionality
+
+TECHNICAL DEBT:
+
+1. Error Recovery
+   - Retry failed downloads automatically
+   - Resume interrupted downloads
+   - Better error categorization
+
+2. Cleanup
+   - Delete old MP3 files
+   - Configurable retention period
+   - Disk space monitoring
+
+3. Testing
+   - Unit tests for utility functions
+   - Integration tests for API endpoints
+   - E2E tests for user flows
+
+4. Logging
+   - Structured logging (Winston/Pino)
+   - Request tracing
+   - Error reporting (Sentry)
+
+================================================================================
+END OF DOCUMENT
+================================================================================

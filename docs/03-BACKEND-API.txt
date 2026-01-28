@@ -1,0 +1,705 @@
+================================================================================
+SOUNDGRAB - BACKEND API DOCUMENTATION
+================================================================================
+Document Version: 1.0
+Last Updated: January 28, 2026
+Purpose: Complete documentation of server-side routes, functions, and logic
+         for engineering reference and API consumers
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+1. Server Configuration
+2. API Endpoints
+   2.1 GET /api/search
+   2.2 POST /api/download
+   2.3 GET /api/files/:filename
+3. Helper Functions
+4. External Tool Integration (yt-dlp)
+5. Error Handling Strategy
+
+================================================================================
+1. SERVER CONFIGURATION
+================================================================================
+
+FILE: server/routes.ts
+----------------------
+
+IMPORTS:
+```typescript
+import type { Express, Request, Response } from "express";
+import { createServer, type Server } from "http";
+import { spawn } from "child_process";
+import * as fs from "fs";
+import * as path from "path";
+import * as https from "https";
+```
+
+ENVIRONMENT VARIABLES:
+----------------------
+GOOGLE_API_KEY (required)
+  - YouTube Data API v3 key
+  - Used for video search
+  - Obtain from Google Cloud Console
+  - Stored in Replit Secrets
+
+CONSTANTS:
+----------
+```typescript
+const YOUTUBE_API_KEY = process.env.GOOGLE_API_KEY;
+const DOWNLOAD_DIR = path.join(process.cwd(), "downloads");
+```
+
+DOWNLOAD_DIR: Absolute path where MP3 files are saved
+  - Created at server startup if doesn't exist
+  - process.cwd() returns project root
+  - Files served via /api/files endpoint
+
+INITIALIZATION:
+---------------
+```typescript
+if (!fs.existsSync(DOWNLOAD_DIR)) {
+  fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
+}
+```
+
+Creates download directory with recursive option (creates parent dirs).
+Runs synchronously at module load time.
+
+================================================================================
+2. API ENDPOINTS
+================================================================================
+
+2.1 GET /api/search
+-------------------
+PURPOSE: Search YouTube for music videos matching query
+
+REQUEST:
+  Method: GET
+  URL: /api/search
+  Query Parameters:
+    - q (required): Search query string
+    - type (optional): "audio" | "lyric" | "both" (default: "both")
+
+RESPONSE:
+  Success (200):
+    ```json
+    {
+      "results": [
+        {
+          "videoId": "dQw4w9WgXcQ",
+          "title": "Rick Astley - Never Gonna Give You Up",
+          "channelTitle": "Rick Astley",
+          "publishedAt": "2009-10-25T06:57:33Z",
+          "description": "Official video...",
+          "thumbnail": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"
+        }
+      ],
+      "nextPageToken": "CAUQAA"
+    }
+    ```
+
+  Error (400): Missing query
+    ```json
+    { "message": "Search query is required" }
+    ```
+
+  Error (500): API key missing or YouTube API error
+    ```json
+    { "message": "YouTube API key not configured" }
+    ```
+
+IMPLEMENTATION LOGIC:
+---------------------
+```typescript
+app.get("/api/search", async (req: Request, res: Response) => {
+  try {
+    const query = req.query.q as string;
+    const type = (req.query.type as string) || "both";
+
+    if (!query) {
+      return res.status(400).json({ message: "Search query is required" });
+    }
+
+    if (!YOUTUBE_API_KEY) {
+      return res.status(500).json({ message: "YouTube API key not configured" });
+    }
+
+    const response = await searchYouTube(query, type);
+    
+    const results = response.items
+      .filter((item) => item.id.videoId)
+      .map((item) => ({
+        videoId: item.id.videoId,
+        title: item.snippet.title,
+        channelTitle: item.snippet.channelTitle,
+        publishedAt: item.snippet.publishedAt,
+        description: item.snippet.description,
+        thumbnail:
+          item.snippet.thumbnails.high?.url ||
+          item.snippet.thumbnails.medium?.url ||
+          item.snippet.thumbnails.default?.url ||
+          "",
+      }));
+
+    res.json({ results, nextPageToken: response.nextPageToken });
+  } catch (error) {
+    console.error("Search error:", error);
+    res.status(500).json({
+      message: error instanceof Error ? error.message : "Search failed",
+    });
+  }
+});
+```
+
+FILTER EXPLANATION:
+.filter((item) => item.id.videoId)
+  - YouTube search can return channels and playlists
+  - Only items with videoId are actual videos
+  - Channels have channelId, playlists have playlistId
+
+THUMBNAIL FALLBACK:
+  - high: 480x360 resolution
+  - medium: 320x180 resolution
+  - default: 120x90 resolution
+  - Fallback chain ensures we always have an image
+
+--------------------------------------------------------------------------------
+
+2.2 POST /api/download
+----------------------
+PURPOSE: Download audio from YouTube video as MP3, stream progress via SSE
+
+REQUEST:
+  Method: POST
+  URL: /api/download
+  Headers:
+    - Content-Type: application/json
+  Body:
+    ```json
+    {
+      "videoId": "dQw4w9WgXcQ",
+      "title": "Rick Astley - Never Gonna Give You Up",
+      "channelTitle": "Rick Astley"
+    }
+    ```
+
+RESPONSE:
+  Content-Type: text/event-stream
+  
+  Progress events (Server-Sent Events format):
+  ```
+  data: {"progress":5,"status":"downloading","message":"Connecting to YouTube..."}
+
+  data: {"progress":15,"status":"downloading","message":"Fetching audio stream..."}
+
+  data: {"progress":45,"status":"downloading","message":"Downloading: 50%"}
+
+  data: {"progress":85,"status":"downloading","message":"Converting to MP3..."}
+
+  data: {"progress":100,"status":"complete","message":"Download complete!","downloadUrl":"/api/files/Rick_Astley_-_Never_Gonna_Give_You_Up.mp3","metadata":{"artist":"Rick Astley","album":"","genre":"Pop"}}
+  ```
+
+  Error event:
+  ```
+  data: {"progress":0,"status":"error","message":"Download failed - file not created"}
+  ```
+
+SSE FORMAT SPECIFICATION:
+-------------------------
+Each message follows Server-Sent Events format:
+- Lines starting with "data: " contain JSON payload
+- Double newline (\n\n) terminates each message
+- Client reads stream until connection closes
+
+IMPLEMENTATION LOGIC:
+---------------------
+```typescript
+app.post("/api/download", async (req: Request, res: Response) => {
+  try {
+    const { videoId, title, channelTitle } = req.body;
+
+    if (!videoId) {
+      return res.status(400).json({ message: "Video ID is required" });
+    }
+
+    // Configure SSE headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+
+    const sendProgress = (data: object) => {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
+    const safeTitle = sanitizeFilename(title || videoId);
+    const outputPath = path.join(DOWNLOAD_DIR, `${safeTitle}.mp3`);
+
+    // Initial progress
+    sendProgress({
+      progress: 5,
+      status: "downloading",
+      message: "Connecting to YouTube...",
+    });
+
+    // Extract metadata from title
+    const metadata = parseMetadataFromTitle(title || "", channelTitle || "");
+
+    // Download with progress callback
+    await downloadAudio(videoId, outputPath, (progress, message) => {
+      sendProgress({
+        progress,
+        status: "downloading",
+        message,
+      });
+    });
+
+    // Verify file exists
+    if (!fs.existsSync(outputPath)) {
+      throw new Error("Download failed - file not created");
+    }
+
+    // Final success message
+    const downloadUrl = `/api/files/${encodeURIComponent(path.basename(outputPath))}`;
+    sendProgress({
+      progress: 100,
+      status: "complete",
+      message: "Download complete!",
+      downloadUrl,
+      metadata,
+    });
+
+    res.end();
+  } catch (error) {
+    // Send error via SSE before closing
+    res.write(`data: ${JSON.stringify({
+      progress: 0,
+      status: "error",
+      message: error instanceof Error ? error.message : "Download failed",
+    })}\n\n`);
+    res.end();
+  }
+});
+```
+
+SSE HEADER EXPLANATION:
+- Content-Type: text/event-stream - Browser recognizes SSE format
+- Cache-Control: no-cache - Prevent caching of stream
+- Connection: keep-alive - Keep connection open for streaming
+- flushHeaders() - Send headers immediately, don't buffer
+
+--------------------------------------------------------------------------------
+
+2.3 GET /api/files/:filename
+----------------------------
+PURPOSE: Serve downloaded MP3 files for browser download
+
+REQUEST:
+  Method: GET
+  URL: /api/files/{filename}
+  URL Parameters:
+    - filename: URL-encoded filename (e.g., "Rick_Astley_-_Never_Gonna.mp3")
+
+RESPONSE:
+  Success (200):
+    Content-Type: audio/mpeg
+    Content-Disposition: attachment; filename="<filename>"
+    Body: Raw MP3 binary data
+
+  Error (404): File not found
+    ```json
+    { "message": "File not found" }
+    ```
+
+  Error (403): Path traversal attempt
+    ```json
+    { "message": "Access denied" }
+    ```
+
+SECURITY IMPLEMENTATION:
+------------------------
+```typescript
+app.get("/api/files/:filename", (req: Request, res: Response) => {
+  try {
+    const rawFilename = req.params.filename;
+    const filename = decodeURIComponent(
+      Array.isArray(rawFilename) ? rawFilename[0] : rawFilename
+    );
+    const filePath = path.join(DOWNLOAD_DIR, filename);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: "File not found" });
+    }
+
+    // PATH TRAVERSAL PROTECTION
+    const safePath = path.resolve(filePath);
+    if (!safePath.startsWith(path.resolve(DOWNLOAD_DIR))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    res.setHeader("Content-Type", "audio/mpeg");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+  } catch (error) {
+    console.error("File serve error:", error);
+    res.status(500).json({ message: "Failed to serve file" });
+  }
+});
+```
+
+PATH TRAVERSAL PROTECTION:
+- Attackers might try: /api/files/../../../etc/passwd
+- path.resolve() converts to absolute path
+- Check that resolved path starts with DOWNLOAD_DIR
+- Prevents escaping to parent directories
+
+STREAMING FILE RESPONSE:
+- createReadStream() opens file for reading
+- pipe(res) streams chunks directly to response
+- Memory efficient for large files
+
+================================================================================
+3. HELPER FUNCTIONS
+================================================================================
+
+FUNCTION: searchYouTube
+-----------------------
+Signature: (query: string, type: string) => Promise<YouTubeSearchResponse>
+
+Purpose: Execute YouTube Data API search request
+
+Parameters:
+- query: User's search term
+- type: "audio" | "lyric" | "both"
+
+Implementation:
+```typescript
+async function searchYouTube(query: string, type: string): Promise<YouTubeSearchResponse> {
+  return new Promise((resolve, reject) => {
+    let searchQuery = query;
+    
+    // Modify query based on type
+    if (type === "audio") {
+      searchQuery = `${query} official audio`;
+    } else if (type === "lyric") {
+      searchQuery = `${query} lyric video`;
+    } else {
+      searchQuery = `${query} audio OR lyric video`;
+    }
+
+    const params = new URLSearchParams({
+      part: "snippet",
+      q: searchQuery,
+      type: "video",
+      videoCategoryId: "10",  // Music category
+      maxResults: "20",
+      key: YOUTUBE_API_KEY || "",
+    });
+
+    const url = `https://www.googleapis.com/youtube/v3/search?${params.toString()}`;
+
+    https.get(url, (res) => {
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(data);
+          if (json.error) {
+            reject(new Error(json.error.message || "YouTube API error"));
+          } else {
+            resolve(json);
+          }
+        } catch (e) {
+          reject(new Error("Failed to parse YouTube response"));
+        }
+      });
+    }).on("error", reject);
+  });
+}
+```
+
+QUERY MODIFICATION RATIONALE:
+- "official audio": Finds audio-only uploads (higher quality)
+- "lyric video": Finds videos with lyrics overlay
+- "audio OR lyric video": Boolean OR for combined results
+
+YOUTUBE API PARAMETERS:
+- part: "snippet" - Returns title, description, thumbnails
+- type: "video" - Only return videos (not channels/playlists)
+- videoCategoryId: "10" - Music category filter
+- maxResults: "20" - Reasonable result count
+
+--------------------------------------------------------------------------------
+
+FUNCTION: parseMetadataFromTitle
+--------------------------------
+Signature: (title: string, channelTitle: string) => MusicMetadata
+
+Purpose: Extract artist, album, genre from video title using heuristics
+
+Implementation:
+```typescript
+function parseMetadataFromTitle(title: string, channelTitle: string): MusicMetadata {
+  let artist = "";
+  let album = "";
+  let genre = "";
+
+  // Try common separator patterns: "Artist - Song Title"
+  const separators = [" - ", " – ", " — ", " | ", " by "];
+  for (const sep of separators) {
+    if (title.includes(sep)) {
+      const parts = title.split(sep);
+      if (parts.length >= 2) {
+        artist = parts[0].trim();
+        break;
+      }
+    }
+  }
+
+  // Fallback: Use channel name as artist
+  if (!artist && channelTitle) {
+    const cleanChannel = channelTitle
+      .replace(/VEVO$/i, "")
+      .replace(/Official$/i, "")
+      .replace(/Music$/i, "")
+      .trim();
+    artist = cleanChannel;
+  }
+
+  // Genre detection from keywords
+  const titleLower = title.toLowerCase();
+  if (titleLower.includes("hip hop") || titleLower.includes("rap")) {
+    genre = "Hip Hop";
+  } else if (titleLower.includes("rock")) {
+    genre = "Rock";
+  } else if (titleLower.includes("pop")) {
+    genre = "Pop";
+  }
+  // ... additional genre checks
+
+  // Album extraction from patterns like "(from 'Album Name')"
+  const albumPatterns = [
+    /\(from ["']?([^"')]+)["']?\)/i,
+    /\[from ["']?([^"'\]]+)["']?\]/i,
+    /album[:\s]+["']?([^"']+)["']?/i,
+  ];
+  for (const pattern of albumPatterns) {
+    const match = title.match(pattern);
+    if (match) {
+      album = match[1].trim();
+      break;
+    }
+  }
+
+  return { artist, album, genre };
+}
+```
+
+HEURISTIC RATIONALE:
+1. Most music videos follow "Artist - Title" format
+2. VEVO channels are official artist channels
+3. Genre keywords often appear in titles
+4. "(from 'Album')" is common in movie soundtracks
+
+--------------------------------------------------------------------------------
+
+FUNCTION: sanitizeFilename
+--------------------------
+Signature: (filename: string) => string
+
+Purpose: Remove characters that are invalid in filenames
+
+```typescript
+function sanitizeFilename(filename: string): string {
+  return filename
+    .replace(/[<>:"/\\|?*]/g, "")  // Remove invalid chars
+    .replace(/\s+/g, "_")          // Spaces to underscores
+    .substring(0, 100);             // Limit length
+}
+```
+
+INVALID CHARACTERS:
+- < > : " / \ | ? * - Invalid on Windows
+- Spaces converted to underscores for URL safety
+- Length limited to prevent filesystem issues
+
+--------------------------------------------------------------------------------
+
+FUNCTION: downloadAudio
+-----------------------
+Signature: (videoId: string, outputPath: string, onProgress: callback) => Promise<void>
+
+Purpose: Spawn yt-dlp process and extract audio
+
+```typescript
+function downloadAudio(
+  videoId: string, 
+  outputPath: string,
+  onProgress: (progress: number, message: string) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const ytdlp = spawn("yt-dlp", [
+      "-x",                    // Extract audio only
+      "--audio-format", "mp3", // Convert to MP3
+      "--audio-quality", "0",  // Best quality
+      "-o", outputPath,        // Output path
+      "--no-playlist",         // Don't download playlists
+      "--newline",             // Progress on separate lines
+      "--progress",            // Show progress
+      `https://www.youtube.com/watch?v=${videoId}`,
+    ]);
+
+    ytdlp.stdout.on("data", (data) => {
+      const output = data.toString();
+      const lines = output.split("\n");
+      
+      for (const line of lines) {
+        // Parse progress percentage
+        const progressMatch = line.match(/\[download\]\s+(\d+(?:\.\d+)?)%/);
+        if (progressMatch) {
+          const percent = parseFloat(progressMatch[1]);
+          const scaledProgress = 20 + (percent * 0.6);  // Scale to 20-80%
+          onProgress(Math.min(80, scaledProgress), `Downloading: ${Math.round(percent)}%`);
+        }
+        
+        // Detect conversion phase
+        if (line.includes("[ExtractAudio]")) {
+          onProgress(85, "Converting to MP3...");
+        }
+      }
+    });
+
+    ytdlp.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    ytdlp.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(stderr || `yt-dlp exited with code ${code}`));
+      }
+    });
+
+    ytdlp.on("error", (err) => {
+      reject(new Error(`Failed to start yt-dlp: ${err.message}`));
+    });
+  });
+}
+```
+
+YT-DLP ARGUMENTS EXPLAINED:
+- -x: Extract audio (discard video)
+- --audio-format mp3: Use FFmpeg to convert to MP3
+- --audio-quality 0: Highest quality (VBR ~245 kbps)
+- --no-playlist: If video is part of playlist, only download this video
+- --newline: Print progress on separate lines (easier to parse)
+- --progress: Enable progress output
+
+PROGRESS SCALING:
+- yt-dlp reports 0-100% for download
+- We scale to 20-80% to leave room for:
+  - 0-20%: Initial connection and setup
+  - 80-100%: Conversion and finalization
+
+================================================================================
+4. EXTERNAL TOOL INTEGRATION (yt-dlp)
+================================================================================
+
+WHAT IS YT-DLP?
+---------------
+yt-dlp is a fork of youtube-dl with additional features and fixes.
+It's a command-line tool for downloading videos/audio from YouTube
+and other video platforms.
+
+INSTALLATION:
+- Installed via Nix package manager (Replit environment)
+- Requires FFmpeg for audio conversion
+
+EXECUTION MODEL:
+```
+Node.js Process (Express)
+    |
+    +-- spawn("yt-dlp", [...args])
+           |
+           +-- yt-dlp Process
+                  |
+                  +-- HTTP requests to YouTube
+                  |
+                  +-- Audio stream download
+                  |
+                  +-- FFmpeg conversion
+                  |
+                  +-- MP3 file output
+```
+
+STDOUT PARSING:
+- yt-dlp outputs progress to stdout
+- Format: "[download]  50.3% of 3.45MiB at 1.23MiB/s ETA 00:02"
+- Regex extracts percentage: /\[download\]\s+(\d+(?:\.\d+)?)%/
+
+ERROR HANDLING:
+- Non-zero exit code indicates failure
+- stderr captured for error messages
+- Common errors:
+  - Video unavailable
+  - Age-restricted content
+  - Geographic restrictions
+  - Rate limiting
+
+================================================================================
+5. ERROR HANDLING STRATEGY
+================================================================================
+
+LAYERED ERROR HANDLING:
+-----------------------
+
+Layer 1: Input Validation
+- Check required parameters exist
+- Return 400 Bad Request for missing/invalid input
+
+Layer 2: Configuration Validation
+- Check environment variables are set
+- Return 500 with descriptive message if not
+
+Layer 3: External Service Errors
+- Catch YouTube API errors
+- Catch yt-dlp process errors
+- Wrap in descriptive error messages
+
+Layer 4: File System Errors
+- Verify files exist after operations
+- Handle path traversal attempts
+
+ERROR RESPONSE FORMAT:
+----------------------
+All errors return JSON:
+```json
+{
+  "message": "Human-readable error description"
+}
+```
+
+SSE ERROR FORMAT:
+-----------------
+Download errors sent via SSE before closing stream:
+```json
+{
+  "progress": 0,
+  "status": "error",
+  "message": "Error description"
+}
+```
+
+LOGGING STRATEGY:
+-----------------
+- console.error() for all caught errors
+- Includes stack trace for debugging
+- Production would use structured logging (Winston, Pino)
+
+================================================================================
+END OF DOCUMENT
+================================================================================

@@ -1,0 +1,592 @@
+================================================================================
+SOUNDGRAB - DATA SCHEMAS AND TYPE DEFINITIONS
+================================================================================
+Document Version: 1.0
+Last Updated: January 28, 2026
+Purpose: Complete documentation of all data structures, Zod schemas, and
+         TypeScript types used throughout the application
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+1. Schema Design Philosophy
+2. Shared Schemas (shared/schema.ts)
+3. TypeScript Interfaces
+4. IndexedDB Schema
+5. API Request/Response Shapes
+6. Type Relationships Diagram
+
+================================================================================
+1. SCHEMA DESIGN PHILOSOPHY
+================================================================================
+
+The application uses Zod for runtime schema validation with TypeScript type
+inference. This approach provides:
+
+1. SINGLE SOURCE OF TRUTH
+   - Zod schemas define data shape
+   - TypeScript types derived from schemas
+   - No manual type/schema synchronization needed
+
+2. RUNTIME VALIDATION
+   - Schemas validate data at runtime
+   - Catches malformed API responses
+   - Provides descriptive error messages
+
+3. TYPE SAFETY
+   - z.infer<typeof schema> generates TypeScript type
+   - Full autocomplete and error checking
+   - Compile-time guarantees
+
+DESIGN DECISION: Why Zod over other validation libraries?
+- First-class TypeScript support
+- Small bundle size (~12KB)
+- Composable schema primitives
+- No code generation required
+- Tree-shakeable
+
+================================================================================
+2. SHARED SCHEMAS (shared/schema.ts)
+================================================================================
+
+FILE LOCATION: shared/schema.ts
+PURPOSE: Define all data schemas shared between client and server
+
+IMPORTS:
+```typescript
+import { z } from "zod";
+```
+
+Only Zod imported - no database dependencies for MVP.
+
+--------------------------------------------------------------------------------
+
+SCHEMA: youtubeVideoSchema
+--------------------------
+PURPOSE: Represents a single YouTube video from search results
+
+```typescript
+export const youtubeVideoSchema = z.object({
+  videoId: z.string(),
+  title: z.string(),
+  channelTitle: z.string(),
+  thumbnail: z.string(),
+  publishedAt: z.string(),
+  description: z.string().optional(),
+});
+```
+
+FIELD DEFINITIONS:
+
+videoId: z.string()
+  - YouTube's unique video identifier
+  - Format: 11-character alphanumeric string
+  - Example: "dQw4w9WgXcQ"
+  - Used to construct YouTube URLs and download requests
+
+title: z.string()
+  - Video title as entered by uploader
+  - May contain special characters, emojis
+  - Often includes artist/song info: "Artist - Song Name (Official)"
+
+channelTitle: z.string()
+  - Name of YouTube channel that uploaded video
+  - Often the artist name or record label
+  - Used as fallback for artist metadata
+
+thumbnail: z.string()
+  - URL to video thumbnail image
+  - Usually YouTube CDN URL: i.ytimg.com/vi/{videoId}/...
+  - Resolution varies: default (120x90), medium (320x180), high (480x360)
+
+publishedAt: z.string()
+  - ISO 8601 date string
+  - Format: "2024-01-28T14:30:00Z"
+  - When video was uploaded to YouTube
+
+description: z.string().optional()
+  - Video description text
+  - Optional because we don't always need it
+  - May contain additional metadata, links
+
+DERIVED TYPE:
+```typescript
+export type YouTubeVideo = z.infer<typeof youtubeVideoSchema>;
+```
+
+--------------------------------------------------------------------------------
+
+SCHEMA: searchRequestSchema
+---------------------------
+PURPOSE: Validates incoming search requests
+
+```typescript
+export const searchRequestSchema = z.object({
+  query: z.string().min(1, "Search query is required"),
+  type: z.enum(["audio", "lyric", "both"]).default("both"),
+});
+```
+
+FIELD DEFINITIONS:
+
+query: z.string().min(1, "Search query is required")
+  - The search term entered by user
+  - Minimum 1 character enforced
+  - Custom error message for empty strings
+
+type: z.enum(["audio", "lyric", "both"]).default("both")
+  - Enum restricts to valid values only
+  - "audio": Search for official audio uploads
+  - "lyric": Search for lyric videos
+  - "both": Search for either type
+  - Defaults to "both" if not specified
+
+DERIVED TYPE:
+```typescript
+export type SearchRequest = z.infer<typeof searchRequestSchema>;
+```
+
+--------------------------------------------------------------------------------
+
+SCHEMA: searchResponseSchema
+----------------------------
+PURPOSE: Defines shape of search API response
+
+```typescript
+export const searchResponseSchema = z.object({
+  results: z.array(youtubeVideoSchema),
+  nextPageToken: z.string().optional(),
+});
+```
+
+FIELD DEFINITIONS:
+
+results: z.array(youtubeVideoSchema)
+  - Array of YouTube video objects
+  - Uses nested schema for type safety
+  - May be empty if no results found
+
+nextPageToken: z.string().optional()
+  - YouTube API pagination token
+  - Use in subsequent request for more results
+  - Undefined if no more pages
+
+DERIVED TYPE:
+```typescript
+export type SearchResponse = z.infer<typeof searchResponseSchema>;
+```
+
+--------------------------------------------------------------------------------
+
+SCHEMA: songMetadataSchema
+--------------------------
+PURPOSE: Represents a downloaded song stored in IndexedDB
+
+```typescript
+export const songMetadataSchema = z.object({
+  id: z.string(),
+  videoId: z.string(),
+  title: z.string(),
+  artist: z.string().optional(),
+  album: z.string().optional(),
+  genre: z.string().optional(),
+  thumbnail: z.string(),
+  downloadedAt: z.string(),
+  filePath: z.string().optional(),
+});
+```
+
+FIELD DEFINITIONS:
+
+id: z.string()
+  - Unique identifier for IndexedDB record
+  - Generated via crypto.randomUUID()
+  - Format: UUID v4 (e.g., "550e8400-e29b-41d4-a716-446655440000")
+  - PRIMARY KEY in IndexedDB
+
+videoId: z.string()
+  - YouTube video ID (foreign reference)
+  - Used to detect duplicate downloads
+  - UNIQUE INDEX in IndexedDB
+
+title: z.string()
+  - Original video title
+  - Preserved for display purposes
+
+artist: z.string().optional()
+  - Extracted or inferred artist name
+  - Optional because extraction may fail
+  - Sources: title parsing, channel name
+
+album: z.string().optional()
+  - Album name if detected
+  - Often extracted from title patterns
+  - Example: "(from 'Album Name')"
+
+genre: z.string().optional()
+  - Musical genre if detected
+  - Inferred from keywords in title
+  - Examples: "Rock", "Pop", "Hip Hop"
+
+thumbnail: z.string()
+  - Cached thumbnail URL
+  - Displayed in library view
+  - May expire after time (YouTube CDN)
+
+downloadedAt: z.string()
+  - ISO 8601 timestamp of download
+  - Used for sorting (newest first)
+  - Generated via new Date().toISOString()
+
+filePath: z.string().optional()
+  - Server path for re-downloading
+  - Format: "/api/files/{filename}.mp3"
+  - Optional for forward compatibility
+
+DERIVED TYPE:
+```typescript
+export type SongMetadata = z.infer<typeof songMetadataSchema>;
+```
+
+--------------------------------------------------------------------------------
+
+SCHEMA: downloadRequestSchema
+-----------------------------
+PURPOSE: Validates download API request body
+
+```typescript
+export const downloadRequestSchema = z.object({
+  videoId: z.string(),
+  title: z.string(),
+  thumbnail: z.string(),
+});
+```
+
+FIELD DEFINITIONS:
+
+videoId: z.string()
+  - Required for yt-dlp to identify video
+  - Constructs URL: youtube.com/watch?v={videoId}
+
+title: z.string()
+  - Used for output filename
+  - Sanitized before use
+
+thumbnail: z.string()
+  - Passed through for storage
+  - Not used by download process
+
+DERIVED TYPE:
+```typescript
+export type DownloadRequest = z.infer<typeof downloadRequestSchema>;
+```
+
+--------------------------------------------------------------------------------
+
+SCHEMA: downloadProgressSchema
+------------------------------
+PURPOSE: Represents download progress state
+
+```typescript
+export const downloadProgressSchema = z.object({
+  videoId: z.string(),
+  progress: z.number().min(0).max(100),
+  status: z.enum(["pending", "downloading", "processing", "complete", "error"]),
+  message: z.string().optional(),
+  downloadUrl: z.string().optional(),
+});
+```
+
+FIELD DEFINITIONS:
+
+videoId: z.string()
+  - Links progress to specific video
+  - Key in downloadProgress Map
+
+progress: z.number().min(0).max(100)
+  - Percentage complete (0-100)
+  - Used for progress bar width
+
+status: z.enum([...])
+  - Current download phase
+  - "pending": Queued, not started
+  - "downloading": Actively downloading
+  - "processing": Converting to MP3
+  - "complete": Successfully finished
+  - "error": Failed with error
+
+message: z.string().optional()
+  - Human-readable status text
+  - Examples: "Downloading: 45%", "Converting..."
+
+downloadUrl: z.string().optional()
+  - Set only when status is "complete"
+  - API endpoint to download file
+
+DERIVED TYPE:
+```typescript
+export type DownloadProgress = z.infer<typeof downloadProgressSchema>;
+```
+
+--------------------------------------------------------------------------------
+
+SCHEMA: metadataResultSchema
+----------------------------
+PURPOSE: Represents extracted metadata from title parsing
+
+```typescript
+export const metadataResultSchema = z.object({
+  artist: z.string().optional(),
+  album: z.string().optional(),
+  genre: z.string().optional(),
+  releaseYear: z.string().optional(),
+});
+```
+
+FIELD DEFINITIONS:
+
+All fields optional because metadata extraction is best-effort.
+
+artist: Parsed from "Artist - Title" pattern or channel name
+album: Parsed from "(from 'Album')" pattern
+genre: Detected from keywords in title
+releaseYear: Currently unused, for future extension
+
+DERIVED TYPE:
+```typescript
+export type MetadataResult = z.infer<typeof metadataResultSchema>;
+```
+
+================================================================================
+3. TYPESCRIPT INTERFACES
+================================================================================
+
+INTERFACE: YouTubeSearchItem (server/routes.ts)
+-----------------------------------------------
+PURPOSE: Types the raw YouTube API response item
+
+```typescript
+interface YouTubeSearchItem {
+  id: { videoId: string };
+  snippet: {
+    title: string;
+    channelTitle: string;
+    publishedAt: string;
+    description: string;
+    thumbnails: {
+      high?: { url: string };
+      medium?: { url: string };
+      default?: { url: string };
+    };
+  };
+}
+```
+
+This interface matches YouTube Data API response structure.
+Note nested structure differs from our flattened youtubeVideoSchema.
+
+INTERFACE: YouTubeSearchResponse (server/routes.ts)
+---------------------------------------------------
+```typescript
+interface YouTubeSearchResponse {
+  items: YouTubeSearchItem[];
+  nextPageToken?: string;
+}
+```
+
+INTERFACE: MusicMetadata (server/routes.ts)
+-------------------------------------------
+```typescript
+interface MusicMetadata {
+  artist: string;
+  album: string;
+  genre: string;
+}
+```
+
+Simple object for metadata parsing output.
+All fields are strings (empty string if not found).
+
+================================================================================
+4. INDEXEDDB SCHEMA
+================================================================================
+
+DATABASE NAME: MusicDownloaderDB
+DATABASE VERSION: 1
+
+OBJECT STORE: songs
+-------------------
+Configuration:
+  - keyPath: "id" (UUID string)
+  - autoIncrement: false
+
+INDEXES:
+
+videoId
+  - keyPath: "videoId"
+  - unique: true
+  - Purpose: Prevent duplicate downloads, fast lookup
+
+artist
+  - keyPath: "artist"
+  - unique: false
+  - Purpose: Future feature - filter by artist
+
+downloadedAt
+  - keyPath: "downloadedAt"
+  - unique: false
+  - Purpose: Future feature - index-based sorting
+
+SCHEMA CREATION CODE:
+```typescript
+request.onupgradeneeded = (event) => {
+  const database = (event.target as IDBOpenDBRequest).result;
+  
+  if (!database.objectStoreNames.contains(STORE_NAME)) {
+    const store = database.createObjectStore(STORE_NAME, { keyPath: "id" });
+    store.createIndex("videoId", "videoId", { unique: true });
+    store.createIndex("artist", "artist", { unique: false });
+    store.createIndex("downloadedAt", "downloadedAt", { unique: false });
+  }
+};
+```
+
+VERSION UPGRADE STRATEGY:
+- Version 1: Initial schema (current)
+- Future versions would add migration logic
+- onupgradeneeded fires when version increases
+- Migrations should be additive (don't delete data)
+
+================================================================================
+5. API REQUEST/RESPONSE SHAPES
+================================================================================
+
+GET /api/search
+---------------
+Request:
+  Query params: ?q=string&type=audio|lyric|both
+
+Response (200):
+  ```typescript
+  {
+    results: YouTubeVideo[];
+    nextPageToken?: string;
+  }
+  ```
+
+Response (400):
+  ```typescript
+  { message: string }
+  ```
+
+POST /api/download
+------------------
+Request body:
+  ```typescript
+  {
+    videoId: string;
+    title: string;
+    thumbnail: string;
+    channelTitle?: string;
+  }
+  ```
+
+Response: Server-Sent Events stream
+  Each event:
+  ```typescript
+  {
+    progress: number;      // 0-100
+    status: string;        // pending|downloading|processing|complete|error
+    message?: string;      // Human-readable status
+    downloadUrl?: string;  // Only on complete
+    metadata?: {           // Only on complete
+      artist: string;
+      album: string;
+      genre: string;
+    };
+  }
+  ```
+
+GET /api/files/:filename
+------------------------
+Request:
+  URL param: filename (URL-encoded)
+
+Response (200):
+  Content-Type: audio/mpeg
+  Body: Binary MP3 data
+
+Response (404/403):
+  ```typescript
+  { message: string }
+  ```
+
+================================================================================
+6. TYPE RELATIONSHIPS DIAGRAM
+================================================================================
+
+                     ┌─────────────────────────────────────┐
+                     │         YouTube Data API            │
+                     │    (External Service Response)      │
+                     └─────────────────┬───────────────────┘
+                                       │
+                                       ▼
+                     ┌─────────────────────────────────────┐
+                     │       YouTubeSearchItem             │
+                     │   (Server-side interface)           │
+                     │   - id.videoId                      │
+                     │   - snippet.title                   │
+                     │   - snippet.thumbnails              │
+                     └─────────────────┬───────────────────┘
+                                       │ Transform
+                                       ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                            YouTubeVideo                                       │
+│                    (Shared schema - flattened)                               │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │   videoId    │  │    title     │  │ channelTitle │  │  thumbnail   │     │
+│  │   string     │  │   string     │  │   string     │  │   string     │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘     │
+│  ┌──────────────┐  ┌──────────────┐                                          │
+│  │ publishedAt  │  │ description  │                                          │
+│  │   string     │  │   string?    │                                          │
+│  └──────────────┘  └──────────────┘                                          │
+└──────────────────────────────────────┬───────────────────────────────────────┘
+                                       │
+                          ┌────────────┴────────────┐
+                          │                         │
+                          ▼                         ▼
+     ┌─────────────────────────────┐    ┌─────────────────────────────┐
+     │      SearchResults          │    │      DownloadRequest        │
+     │   (Frontend display)        │    │   (API request body)        │
+     │   Uses: videoId, title,     │    │   Uses: videoId, title,     │
+     │   channelTitle, thumbnail   │    │   thumbnail                 │
+     └─────────────────────────────┘    └──────────────┬──────────────┘
+                                                       │
+                                                       ▼
+                                        ┌─────────────────────────────┐
+                                        │     DownloadProgress        │
+                                        │   (Real-time updates)       │
+                                        │   - progress: 0-100         │
+                                        │   - status: enum            │
+                                        │   - downloadUrl?: string    │
+                                        └──────────────┬──────────────┘
+                                                       │
+                                                       ▼
+                                        ┌─────────────────────────────┐
+                                        │       SongMetadata          │
+                                        │    (IndexedDB record)       │
+                                        │   - id: UUID                │
+                                        │   - videoId: string         │
+                                        │   - title: string           │
+                                        │   - artist?: string         │
+                                        │   - album?: string          │
+                                        │   - genre?: string          │
+                                        │   - thumbnail: string       │
+                                        │   - downloadedAt: ISO date  │
+                                        │   - filePath?: string       │
+                                        └─────────────────────────────┘
+
+================================================================================
+END OF DOCUMENT
+================================================================================

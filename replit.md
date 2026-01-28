@@ -2,7 +2,19 @@
 
 ## Overview
 
-This is a music downloader application that allows users to search for songs on YouTube and download them. The app features a React frontend with a search interface, download progress tracking, and a local library for managing downloaded songs. The backend is an Express server that handles YouTube API searches and audio downloads using yt-dlp.
+SoundGrab is a YouTube audio downloader application that allows users to search for songs on YouTube and download them as MP3 files. The app features a React frontend with a search interface, real-time download progress tracking, and a local library for managing downloaded songs. The backend is an Express server that handles YouTube API searches and audio downloads using yt-dlp.
+
+## Technical Documentation
+
+Comprehensive technical documentation is available in the `docs/` directory:
+
+- **docs/README.txt** - Documentation index and reading guide
+- **docs/01-ARCHITECTURE-OVERVIEW.txt** - System architecture and technology stack
+- **docs/02-FRONTEND-COMPONENTS.txt** - Detailed React component documentation
+- **docs/03-BACKEND-API.txt** - Complete API reference and server implementation
+- **docs/04-DATA-SCHEMAS.txt** - Data structures and type definitions
+- **docs/05-DESIGN-DECISIONS.txt** - Architectural decisions and rationale
+- **docs/06-VARIABLE-FUNCTION-REFERENCE.txt** - Complete code reference index
 
 ## User Preferences
 
@@ -24,6 +36,15 @@ Preferred communication style: Simple, everyday language.
 - **API Design**: REST endpoints for search and download operations
 - **YouTube Integration**: Uses Google YouTube Data API for search, yt-dlp for downloading
 - **File Storage**: Downloads stored in a local `downloads` directory
+- **Progress Streaming**: Server-Sent Events (SSE) for real-time download progress
+
+### API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/search` | GET | Search YouTube for music videos |
+| `/api/download` | POST | Download audio as MP3 (SSE stream) |
+| `/api/files/:filename` | GET | Serve downloaded MP3 files |
 
 ### Key Design Decisions
 
@@ -31,31 +52,57 @@ Preferred communication style: Simple, everyday language.
 
 2. **Monorepo structure**: The project uses a shared directory for schemas and types used by both frontend and backend, ensuring type safety across the stack.
 
-3. **Schema validation**: Zod is used for runtime schema validation on both client and server, with drizzle-zod for database schema generation.
+3. **Schema validation**: Zod is used for runtime schema validation on both client and server.
 
-4. **Dark mode by default**: The app defaults to dark mode with a vibrant magenta/cyan color scheme.
+4. **Dark mode by default**: The app respects user preference but defaults to dark mode with a vibrant magenta/cyan color scheme.
+
+5. **Server-Sent Events**: Download progress is streamed to the client via SSE for real-time feedback.
 
 ### Directory Structure
-- `client/` - React frontend application
-- `server/` - Express backend server
-- `shared/` - Shared TypeScript schemas and types
-- `script/` - Build scripts
-- `migrations/` - Drizzle database migrations
+```
+project-root/
+├── client/               # React frontend application
+│   ├── src/
+│   │   ├── components/   # Reusable UI components
+│   │   ├── pages/        # Route-level components
+│   │   ├── lib/          # Utilities (db.ts, queryClient.ts)
+│   │   └── hooks/        # Custom React hooks
+├── server/               # Express backend server
+│   ├── routes.ts         # API route definitions
+│   └── index.ts          # Server entry point
+├── shared/               # Shared TypeScript schemas and types
+│   └── schema.ts         # Zod schemas
+├── docs/                 # Technical documentation
+│   └── *.txt             # Documentation files
+├── downloads/            # Downloaded MP3 files (created at runtime)
+└── script/               # Build scripts
+```
 
 ## External Dependencies
 
 ### APIs and Services
 - **YouTube Data API**: Used for searching videos (requires `GOOGLE_API_KEY` environment variable)
-- **yt-dlp**: Command-line tool for downloading audio from YouTube videos (must be installed on the system)
+- **yt-dlp**: Command-line tool for downloading audio from YouTube videos
+- **FFmpeg**: Audio conversion tool used by yt-dlp
 
-### Database
-- **PostgreSQL**: Configured via Drizzle ORM (requires `DATABASE_URL` environment variable)
+### Client-Side Storage
 - **IndexedDB**: Browser-side storage for song library metadata
+  - Database: MusicDownloaderDB
+  - Store: songs
+  - Indexes: videoId (unique), artist, downloadedAt
 
 ### Key NPM Packages
-- `drizzle-orm` / `drizzle-kit`: Database ORM and migrations
 - `@tanstack/react-query`: Data fetching and caching
 - `zod`: Schema validation
-- `express-session` / `connect-pg-simple`: Session management with PostgreSQL store
-- `wouter`: Client-side routing
+- `wouter`: Client-side routing (1KB alternative to React Router)
+- `lucide-react`: Icon library
 - Radix UI primitives: Accessible UI component foundations
+
+## Development
+
+### Running the Application
+The application runs via the "Start application" workflow which executes `npm run dev`.
+This starts both the Express backend and Vite frontend dev server on port 5000.
+
+### Environment Variables
+- `GOOGLE_API_KEY`: YouTube Data API v3 key (required for search functionality)

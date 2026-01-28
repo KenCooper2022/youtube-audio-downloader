@@ -1,0 +1,702 @@
+================================================================================
+SOUNDGRAB - FRONTEND COMPONENTS DOCUMENTATION
+================================================================================
+Document Version: 1.0
+Last Updated: January 28, 2026
+Purpose: Detailed documentation of all React components, their props, state,
+         and internal logic for engineering reference
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+1. Entry Points (main.tsx, App.tsx)
+2. Page Components (Home.tsx)
+3. Feature Components
+   3.1 SearchBar.tsx
+   3.2 SearchResults.tsx
+   3.3 Library.tsx
+   3.4 LoadingBar.tsx
+   3.5 ThemeToggle.tsx
+4. Utility Libraries (db.ts)
+5. Styling System (index.css)
+
+================================================================================
+1. ENTRY POINTS
+================================================================================
+
+FILE: client/src/main.tsx
+-------------------------
+PURPOSE: React application bootstrap
+
+IMPORTS:
+- React: Core library (implicit via JSX transform)
+- ReactDOM: DOM rendering utilities
+- App: Root application component
+- index.css: Global styles and theme variables
+
+LOGIC:
+```typescript
+ReactDOM.createRoot(document.getElementById("root")!)
+  .render(<App />);
+```
+
+The non-null assertion (!) is safe because index.html guarantees
+<div id="root"></div> exists.
+
+DESIGN DECISION: StrictMode intentionally omitted to avoid double-mounting
+during development, which would cause duplicate API calls and confusing
+state behavior for SSE streams.
+
+--------------------------------------------------------------------------------
+
+FILE: client/src/App.tsx
+------------------------
+PURPOSE: Root component establishing provider hierarchy and routing
+
+IMPORTS:
+- Switch, Route: wouter routing components
+- QueryClientProvider: React Query context provider
+- queryClient: Pre-configured query client instance
+- Toaster: Toast notification container
+- TooltipProvider: Radix tooltip context
+- Home, NotFound: Page components
+
+COMPONENT STRUCTURE:
+```typescript
+function Router() {
+  return (
+    <Switch>
+      <Route path="/" component={Home} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+```
+
+Router uses wouter's Switch for first-match routing. The final Route
+without a path acts as catch-all 404 handler.
+
+PROVIDER HIERARCHY:
+1. QueryClientProvider: Outermost - provides React Query cache
+2. TooltipProvider: Enables tooltip functionality for all children
+3. Toaster: Renders toast notifications portal
+4. Router: Determines which page to render
+
+DESIGN DECISION: wouter chosen over react-router because:
+- 1KB vs 10KB+ bundle size
+- Simpler API for small applications
+- No need for data loaders or complex routing patterns
+
+================================================================================
+2. PAGE COMPONENTS
+================================================================================
+
+FILE: client/src/pages/Home.tsx
+-------------------------------
+PURPOSE: Main application page containing all primary functionality
+
+IMPORTS:
+- React hooks: useState, useEffect, useCallback
+- Lucide icons: Music, Headphones, Sparkles
+- Custom hooks: useToast
+- Components: ThemeToggle, SearchBar, SearchResults, LoadingBar, Library
+- UI components: Tabs, TabsContent, TabsList, TabsTrigger
+- Database utilities: saveSong, getSongByVideoId, initDB
+- Types: YouTubeVideo, DownloadProgress, SongMetadata
+
+STATE VARIABLES:
+----------------
+searchResults: YouTubeVideo[]
+  - Default: empty array []
+  - Purpose: Stores current search results from YouTube API
+  - Updated by: handleSearch callback
+
+isSearching: boolean
+  - Default: false
+  - Purpose: Loading state for search operation
+  - Controls: SearchBar disabled state, LoadingBar visibility
+
+downloadProgress: Map<string, DownloadProgress>
+  - Default: new Map()
+  - Purpose: Tracks download progress for each video (keyed by videoId)
+  - Structure: Map preserves insertion order and allows O(1) lookup
+
+downloadedVideos: Set<string>
+  - Default: new Set()
+  - Purpose: Quick lookup for already-downloaded videos
+  - Used by: SearchResults to show "Downloaded" badge
+
+libraryRefresh: number
+  - Default: 0
+  - Purpose: Trigger for Library component re-fetch
+  - Pattern: Incrementing counter forces useEffect dependency change
+
+activeTab: string
+  - Default: "search"
+  - Purpose: Controls which tab content is visible
+  - Values: "search" | "library"
+
+INITIALIZATION (useEffect):
+---------------------------
+```typescript
+useEffect(() => {
+  initDB().catch(console.error);
+}, []);
+```
+- Runs once on mount (empty dependency array)
+- Initializes IndexedDB connection
+- Errors logged but not blocking (graceful degradation)
+
+CALLBACK: handleSearch
+----------------------
+Signature: (query: string, type: "audio" | "lyric" | "both") => Promise<void>
+
+Wrapped in useCallback with [toast] dependency for stable reference.
+
+Logic Flow:
+1. Set isSearching = true, clear previous results
+2. Construct URL: /api/search?q={query}&type={type}
+3. Fetch with error handling
+4. Parse JSON response
+5. Update searchResults state
+6. Show toast if no results found
+7. Catch errors, show destructive toast
+8. Finally: set isSearching = false
+
+DESIGN DECISION: Direct fetch() instead of React Query because:
+- Search is imperative (user-triggered), not declarative
+- No automatic refetching or caching needed
+- SSE streaming for download requires direct response handling
+
+CALLBACK: handleDownload
+------------------------
+Signature: (video: YouTubeVideo) => Promise<void>
+
+Wrapped in useCallback with [toast] dependency.
+
+Logic Flow:
+1. Check if already downloaded via IndexedDB lookup
+   - If exists: show toast, add to downloadedVideos set, return
+2. Initialize progress in downloadProgress Map
+3. POST to /api/download with video details
+4. Get response body reader for SSE streaming
+5. Buffer incoming data, split on newlines
+6. Parse each "data: " prefixed line as JSON
+7. Update downloadProgress Map with new values
+8. On "complete" status:
+   a. Construct SongMetadata object
+   b. Save to IndexedDB via saveSong()
+   c. Add to downloadedVideos Set
+   d. Increment libraryRefresh to trigger Library re-render
+   e. Show success toast
+   f. Create temporary <a> element for automatic download
+9. On error: update progress status to "error", show toast
+
+SSE PARSING IMPLEMENTATION:
+---------------------------
+```typescript
+let buffer = "";
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  
+  buffer += decoder.decode(value, { stream: true });
+  const lines = buffer.split("\n");
+  buffer = lines.pop() || "";  // Keep incomplete line in buffer
+  
+  for (const line of lines) {
+    if (line.startsWith("data: ")) {
+      const data = JSON.parse(line.slice(6));
+      // Process data...
+    }
+  }
+}
+```
+
+DESIGN DECISION: Buffer-based SSE parsing because:
+- Network chunks don't align with message boundaries
+- ReadableStream may deliver partial messages
+- Without buffering, JSON.parse fails on incomplete data
+
+AUTOMATIC DOWNLOAD TRIGGER:
+---------------------------
+```typescript
+const link = document.createElement("a");
+link.href = data.downloadUrl;
+link.download = `${video.title}.mp3`;
+document.body.appendChild(link);
+link.click();
+document.body.removeChild(link);
+```
+
+Creates temporary anchor element to trigger browser download.
+The download attribute suggests filename to browser.
+
+RENDER STRUCTURE:
+-----------------
+- Header (sticky, blur backdrop)
+  - Logo with gradient background
+  - ThemeToggle button
+- Main content
+  - Hero section (badge, title, description)
+  - Tabs container
+    - Search tab: SearchBar, LoadingBar, SearchResults
+    - Library tab: Library component
+- Footer
+
+================================================================================
+3. FEATURE COMPONENTS
+================================================================================
+
+3.1 FILE: client/src/components/SearchBar.tsx
+---------------------------------------------
+PURPOSE: Search input with type filter and submit button
+
+PROPS INTERFACE:
+```typescript
+interface SearchBarProps {
+  onSearch: (query: string, type: "audio" | "lyric" | "both") => void;
+  isLoading: boolean;
+}
+```
+
+STATE VARIABLES:
+- query: string - Current input value
+- searchType: "audio" | "lyric" | "both" - Selected filter type
+
+FORM HANDLING:
+```typescript
+const handleSubmit = (e: React.FormEvent) => {
+  e.preventDefault();  // Prevent page reload
+  if (query.trim()) {
+    onSearch(query.trim(), searchType);
+  }
+};
+```
+
+UI ELEMENTS:
+- Input (type="search"): Main text input
+  - Placeholder: "Search for a song, artist, or lyrics..."
+  - Left icon: Search (magnifying glass)
+  - data-testid: "input-search"
+
+- Select (searchType): Filter dropdown
+  - Options: All Music, Audio Only, Lyric Videos
+  - Each option includes icon for visual clarity
+  - data-testid: "select-search-type"
+
+- Button (submit): Search trigger
+  - Disabled when: empty query OR isLoading
+  - Shows spinner animation when loading
+  - data-testid: "button-search"
+
+DESIGN DECISION: Form element wraps inputs because:
+- Enables Enter key submission
+- Proper accessibility semantics
+- Native form validation support
+
+--------------------------------------------------------------------------------
+
+3.2 FILE: client/src/components/SearchResults.tsx
+-------------------------------------------------
+PURPOSE: Displays grid of video result cards with download controls
+
+PROPS INTERFACE:
+```typescript
+interface SearchResultsProps {
+  results: YouTubeVideo[];
+  onDownload: (video: YouTubeVideo) => void;
+  downloadProgress: Map<string, DownloadProgress>;
+  downloadedVideos: Set<string>;
+}
+```
+
+HELPER FUNCTIONS:
+
+formatDate(dateString: string): string
+  - Converts ISO date to human-readable format
+  - Uses Intl.DateTimeFormat via toLocaleDateString
+  - Format: "Jan 28, 2026"
+
+getProgressStatus(videoId: string): DownloadProgress | undefined
+  - Simple Map lookup wrapper
+  - Returns undefined if not downloading
+
+RENDER LOGIC:
+-------------
+For each video in results:
+
+1. Determine download state:
+   - isDownloaded: videoId in downloadedVideos Set
+   - isDownloading: progress exists AND status not complete/error
+
+2. Render Card with hover-elevate class:
+   - Thumbnail container (relative positioning for overlay)
+     - Image with object-cover for aspect ratio
+     - Hover overlay with Play button (links to YouTube)
+   - Content section:
+     - Title (line-clamp-2 for truncation)
+     - Channel name with User icon
+     - Date with Clock icon
+
+3. Action section (conditional rendering):
+   - If isDownloaded: "Downloaded" badge (cyan accent)
+   - If isDownloading: Progress bar with percentage
+   - If error: "Error" badge + Retry button
+   - Default: "Download MP3" button
+
+PROGRESS BAR IMPLEMENTATION:
+```typescript
+<div className="h-2 bg-muted rounded-full overflow-hidden">
+  <div 
+    className="h-full bg-gradient-to-r from-primary to-accent 
+               transition-all duration-300 rounded-full"
+    style={{ width: `${progress?.progress || 0}%` }}
+  />
+</div>
+```
+
+Uses inline style for width because:
+- CSS classes for percentages would require 100 classes
+- Transition smoothly animates width changes
+
+--------------------------------------------------------------------------------
+
+3.3 FILE: client/src/components/Library.tsx
+-------------------------------------------
+PURPOSE: Displays downloaded songs from IndexedDB with delete functionality
+
+PROPS INTERFACE:
+```typescript
+interface LibraryProps {
+  refreshTrigger: number;
+}
+```
+
+The refreshTrigger prop is a counter that increments when a new song is
+downloaded. This triggers the useEffect to re-fetch songs.
+
+STATE VARIABLES:
+- songs: SongMetadata[] - All downloaded songs
+- isLoading: boolean - Loading state for initial fetch
+
+DATA FETCHING (useEffect):
+```typescript
+useEffect(() => {
+  loadSongs();
+}, [refreshTrigger]);
+```
+
+Dependency on refreshTrigger ensures re-fetch when counter changes.
+
+FUNCTION: loadSongs
+-------------------
+Async function that:
+1. Sets isLoading = true
+2. Calls getAllSongs() from db.ts
+3. Updates songs state
+4. Sets isLoading = false
+5. Catches and logs errors
+
+FUNCTION: handleDelete
+----------------------
+Signature: (id: string) => Promise<void>
+
+Logic:
+1. Call deleteSong(id) from db.ts
+2. Update local state by filtering out deleted song
+3. Catch and log errors
+
+RENDER STATES:
+--------------
+1. Loading state: Skeleton cards with pulse animation
+2. Empty state: Card with icon and "No songs yet" message
+3. Normal state: Grid of song cards
+
+SONG CARD STRUCTURE:
+- Thumbnail (20x20 rounded)
+- Title (line-clamp-1)
+- Metadata badges (artist, album, genre) - only shown if data exists
+- Download date
+- Action buttons (re-download, delete)
+
+DESIGN DECISION: Local state filtering on delete instead of re-fetch:
+- Immediate UI feedback (optimistic update)
+- No unnecessary network/DB round-trip
+- If delete fails, error is logged but UI is already updated
+  (acceptable for MVP, production would need rollback)
+
+--------------------------------------------------------------------------------
+
+3.4 FILE: client/src/components/LoadingBar.tsx
+----------------------------------------------
+PURPOSE: Animated progress indicator for search operations
+
+PROPS INTERFACE:
+```typescript
+interface LoadingBarProps {
+  isLoading: boolean;
+  progress?: number;      // Optional: 0-100 for determinate progress
+  message?: string;       // Optional: Status text
+}
+```
+
+CONDITIONAL RENDERING:
+```typescript
+if (!isLoading) return null;
+```
+
+Returns null (renders nothing) when not loading.
+
+PROGRESS BAR MODES:
+
+1. Determinate (progress defined):
+   - Solid progress bar with gradient
+   - Width controlled by progress prop
+
+2. Indeterminate (progress undefined):
+   - Shimmer animation overlay
+   - CSS keyframe animation moves gradient
+
+SHIMMER ANIMATION:
+```css
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+```
+
+Background gradient moves left-to-right continuously.
+200% size ensures smooth loop without visible seam.
+
+--------------------------------------------------------------------------------
+
+3.5 FILE: client/src/components/ThemeToggle.tsx
+-----------------------------------------------
+PURPOSE: Toggle between dark and light color themes
+
+STATE INITIALIZATION:
+```typescript
+const [isDark, setIsDark] = useState(() => {
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem("theme");
+    if (stored) {
+      return stored === "dark";
+    }
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  return true;  // SSR fallback
+});
+```
+
+Lazy initial state function runs once:
+1. Check localStorage for saved preference
+2. If no saved preference, use system preference (prefers-color-scheme)
+3. SSR fallback defaults to dark
+
+INITIALIZATION (useEffect):
+```typescript
+useEffect(() => {
+  const stored = localStorage.getItem("theme");
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const shouldBeDark = stored ? stored === "dark" : prefersDark;
+  setIsDark(shouldBeDark);
+  document.documentElement.classList.toggle("dark", shouldBeDark);
+}, []);
+```
+
+Runs on mount to sync DOM with state. The "dark" class on <html>
+triggers Tailwind's dark mode styles.
+
+TOGGLE FUNCTION:
+```typescript
+const toggleTheme = () => {
+  const newTheme = !isDark;
+  setIsDark(newTheme);
+  localStorage.setItem("theme", newTheme ? "dark" : "light");
+  document.documentElement.classList.toggle("dark", newTheme);
+};
+```
+
+1. Invert current state
+2. Persist to localStorage
+3. Update DOM class immediately
+
+RENDER:
+- Ghost variant button for subtle appearance
+- Sun icon when dark (click will switch to light)
+- Moon icon when light (click will switch to dark)
+
+================================================================================
+4. UTILITY LIBRARIES
+================================================================================
+
+FILE: client/src/lib/db.ts
+--------------------------
+PURPOSE: IndexedDB wrapper for song metadata persistence
+
+CONSTANTS:
+```typescript
+const DB_NAME = "MusicDownloaderDB";
+const DB_VERSION = 1;
+const STORE_NAME = "songs";
+```
+
+These constants ensure consistent database naming across the application.
+VERSION is incremented when schema changes require migration.
+
+MODULE STATE:
+```typescript
+let db: IDBDatabase | null = null;
+```
+
+Cached database connection. Prevents opening multiple connections.
+
+FUNCTION: initDB
+----------------
+Signature: () => Promise<IDBDatabase>
+
+Purpose: Opens IndexedDB connection, creates schema if needed
+
+Logic:
+1. If db already cached, return it
+2. Open database with version number
+3. Handle upgrade event for schema creation
+4. Cache connection in module variable
+5. Return connection
+
+SCHEMA CREATION (onupgradeneeded):
+```typescript
+request.onupgradeneeded = (event) => {
+  const database = (event.target as IDBOpenDBRequest).result;
+  
+  if (!database.objectStoreNames.contains(STORE_NAME)) {
+    const store = database.createObjectStore(STORE_NAME, { keyPath: "id" });
+    store.createIndex("videoId", "videoId", { unique: true });
+    store.createIndex("artist", "artist", { unique: false });
+    store.createIndex("downloadedAt", "downloadedAt", { unique: false });
+  }
+};
+```
+
+Creates object store with:
+- keyPath: "id" - Primary key is the id field
+- videoId index: Unique, for duplicate detection
+- artist index: Non-unique, for future filtering
+- downloadedAt index: Non-unique, for sorting
+
+FUNCTION: saveSong
+------------------
+Signature: (song: SongMetadata) => Promise<void>
+
+Uses put() instead of add() to allow updates (upsert behavior).
+
+FUNCTION: getSong
+-----------------
+Signature: (id: string) => Promise<SongMetadata | undefined>
+
+Direct key lookup by id.
+
+FUNCTION: getSongByVideoId
+--------------------------
+Signature: (videoId: string) => Promise<SongMetadata | undefined>
+
+Uses index lookup for videoId field.
+Important for checking if video already downloaded.
+
+FUNCTION: getAllSongs
+---------------------
+Signature: () => Promise<SongMetadata[]>
+
+Returns all songs sorted by downloadedAt (newest first).
+Sorting done in JavaScript after fetch for flexibility.
+
+FUNCTION: deleteSong
+--------------------
+Signature: (id: string) => Promise<void>
+
+Deletes record by primary key.
+
+FUNCTION: updateSongMetadata
+----------------------------
+Signature: (id: string, metadata: Partial<SongMetadata>) => Promise<void>
+
+Read-modify-write pattern:
+1. Fetch existing song
+2. Merge with updates
+3. Save merged object
+
+DESIGN DECISION: Promise wrappers around IndexedDB:
+- IndexedDB uses event-based API (onsuccess, onerror)
+- Promises enable async/await for cleaner code
+- Error handling unified through Promise rejection
+
+================================================================================
+5. STYLING SYSTEM
+================================================================================
+
+FILE: client/src/index.css
+--------------------------
+PURPOSE: Global styles, CSS custom properties for theming, utility classes
+
+STRUCTURE:
+1. Tailwind directives (@tailwind base/components/utilities)
+2. Light mode variables (:root)
+3. Dark mode variables (.dark)
+4. Base layer styles (@layer base)
+5. Utility layer styles (@layer utilities)
+
+COLOR PALETTE:
+--------------
+Primary colors derived from HSL values:
+
+--primary: 300 100% 50%
+  HSL(300, 100%, 50%) = Magenta (#FF00FF)
+  Used for: Main accent, buttons, links
+
+--accent: 180 100% 40% (light) / 180 100% 45% (dark)
+  HSL(180, 100%, 40%) = Cyan (#00CCCC)
+  Used for: Secondary accent, downloaded badge
+
+--background: 0 0% 100% (light) / 0 0% 4% (dark)
+  White / Near-black
+  Used for: Page background
+
+--foreground: 0 0% 5% (light) / 0 0% 98% (dark)
+  Near-black / Near-white
+  Used for: Primary text
+
+CUSTOM UTILITY CLASSES:
+-----------------------
+
+.gradient-text
+  Creates magenta-to-cyan gradient text effect
+  Uses background-clip: text with transparent text color
+
+.glow-primary / .glow-accent
+  Box shadows in theme colors for neon effect
+
+.animate-pulse-glow
+  Keyframe animation for pulsing glow effect
+  Used for loading indicators
+
+ELEVATION SYSTEM:
+-----------------
+Built-in hover/active state system using pseudo-elements:
+
+.hover-elevate: Adds subtle overlay on hover
+.active-elevate-2: Adds stronger overlay on click
+.toggle-elevate: Background change for toggle state
+
+These classes work with any background color because they
+use semi-transparent overlays rather than absolute colors.
+
+DESIGN DECISION: HSL color values because:
+- Easier to create variations (adjust lightness)
+- Dark mode: increase lightness for visibility
+- Consistent saturation across palette
+- Mathematical relationship between colors
+
+================================================================================
+END OF DOCUMENT
+================================================================================

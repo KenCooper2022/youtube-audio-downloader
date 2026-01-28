@@ -1,0 +1,456 @@
+================================================================================
+SOUNDGRAB - VARIABLE AND FUNCTION REFERENCE
+================================================================================
+Document Version: 1.0
+Last Updated: January 28, 2026
+Purpose: Complete reference of all variables, functions, constants, and their
+         purposes across the entire codebase
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+1. Server Constants and Variables
+2. Server Functions
+3. Client Constants and Variables
+4. Client Functions and Hooks
+5. Shared Types and Schemas
+6. CSS Variables
+
+================================================================================
+1. SERVER CONSTANTS AND VARIABLES
+================================================================================
+
+FILE: server/routes.ts
+----------------------
+
+YOUTUBE_API_KEY: string | undefined
+  Source: process.env.GOOGLE_API_KEY
+  Purpose: YouTube Data API v3 authentication key
+  Usage: Passed to YouTube API requests for authorization
+  Required: Yes - search fails without it
+
+DOWNLOAD_DIR: string
+  Source: path.join(process.cwd(), "downloads")
+  Purpose: Absolute path to directory where MP3 files are saved
+  Default: {project_root}/downloads
+  Created: Automatically on server startup if doesn't exist
+
+FILE: server/storage.ts
+-----------------------
+
+storage: MemStorage
+  Purpose: Singleton instance of in-memory storage
+  Usage: Not actively used in MVP (placeholder for future database)
+
+================================================================================
+2. SERVER FUNCTIONS
+================================================================================
+
+FILE: server/routes.ts
+----------------------
+
+FUNCTION: registerRoutes
+------------------------
+Signature: (httpServer: Server, app: Express) => Promise<Server>
+Purpose: Register all API routes on Express application
+Returns: The HTTP server instance for chaining
+Called by: server/index.ts during startup
+
+Route handlers registered:
+  - GET /api/search
+  - POST /api/download  
+  - GET /api/files/:filename
+
+FUNCTION: searchYouTube
+-----------------------
+Signature: (query: string, type: string) => Promise<YouTubeSearchResponse>
+Purpose: Execute search request against YouTube Data API
+Parameters:
+  - query: User's search term
+  - type: "audio" | "lyric" | "both" - modifies search query
+Returns: Promise resolving to YouTube API response
+Throws: Error if API returns error or response can't be parsed
+
+Internal logic:
+  1. Modify query based on type parameter
+  2. Construct URLSearchParams with API parameters
+  3. Make HTTPS GET request to googleapis.com
+  4. Parse JSON response
+  5. Resolve or reject based on response content
+
+FUNCTION: parseMetadataFromTitle
+--------------------------------
+Signature: (title: string, channelTitle: string) => MusicMetadata
+Purpose: Extract artist, album, genre from video title using heuristics
+Parameters:
+  - title: Video title string
+  - channelTitle: YouTube channel name
+Returns: Object with artist, album, genre strings (may be empty)
+
+Parsing strategies:
+  1. Split on common separators: " - ", " – ", " — ", " | ", " by "
+  2. First part before separator assumed to be artist
+  3. Fallback: Use channel name minus common suffixes (VEVO, Official, Music)
+  4. Genre detection: Search for keywords in lowercase title
+  5. Album extraction: Match patterns like "(from 'Album Name')"
+
+FUNCTION: downloadAudio
+-----------------------
+Signature: (videoId: string, outputPath: string, onProgress: callback) => Promise<void>
+Purpose: Spawn yt-dlp process to download and convert audio
+Parameters:
+  - videoId: YouTube video ID (11 characters)
+  - outputPath: Full path where MP3 should be saved
+  - onProgress: Callback function (progress: number, message: string) => void
+Returns: Promise that resolves when download completes
+Throws: Error if yt-dlp exits with non-zero code
+
+yt-dlp arguments used:
+  - -x: Extract audio only
+  - --audio-format mp3: Output format
+  - --audio-quality 0: Best quality
+  - -o {outputPath}: Output file path
+  - --no-playlist: Ignore playlist if video is part of one
+  - --newline: Progress on separate lines
+  - --progress: Enable progress output
+
+FUNCTION: sanitizeFilename
+--------------------------
+Signature: (filename: string) => string
+Purpose: Remove invalid characters from filename
+Parameters:
+  - filename: Raw filename string
+Returns: Sanitized filename safe for filesystem
+
+Transformations applied:
+  1. Remove: < > : " / \ | ? *
+  2. Replace spaces with underscores
+  3. Truncate to 100 characters maximum
+
+================================================================================
+3. CLIENT CONSTANTS AND VARIABLES
+================================================================================
+
+FILE: client/src/lib/db.ts
+--------------------------
+
+DB_NAME: string = "MusicDownloaderDB"
+  Purpose: IndexedDB database name
+  Note: Changing this creates a new database
+
+DB_VERSION: number = 1
+  Purpose: Database schema version
+  Note: Increment when schema changes
+
+STORE_NAME: string = "songs"
+  Purpose: IndexedDB object store name
+
+db: IDBDatabase | null
+  Purpose: Cached database connection
+  Lifecycle: null until initDB() called, then persists
+
+FILE: client/src/pages/Home.tsx
+-------------------------------
+
+STATE VARIABLES (via useState):
+
+searchResults: YouTubeVideo[]
+  Purpose: Current search results from API
+  Initial: []
+  Updated by: handleSearch callback
+
+isSearching: boolean
+  Purpose: Loading state during search
+  Initial: false
+  Updated by: handleSearch callback
+
+downloadProgress: Map<string, DownloadProgress>
+  Purpose: Track progress of all active downloads
+  Initial: new Map()
+  Key: videoId
+  Updated by: handleDownload callback (SSE events)
+
+downloadedVideos: Set<string>
+  Purpose: Quick lookup for completed downloads
+  Initial: new Set()
+  Updated by: handleDownload callback on completion
+
+libraryRefresh: number
+  Purpose: Trigger Library component re-fetch
+  Initial: 0
+  Pattern: Increment to trigger useEffect
+
+activeTab: string
+  Purpose: Current active tab
+  Initial: "search"
+  Values: "search" | "library"
+
+FILE: client/src/components/SearchBar.tsx
+-----------------------------------------
+
+STATE VARIABLES:
+
+query: string
+  Purpose: Current search input value
+  Initial: ""
+
+searchType: "audio" | "lyric" | "both"
+  Purpose: Selected filter type
+  Initial: "both"
+
+FILE: client/src/components/Library.tsx
+---------------------------------------
+
+STATE VARIABLES:
+
+songs: SongMetadata[]
+  Purpose: All downloaded songs from IndexedDB
+  Initial: []
+
+isLoading: boolean
+  Purpose: Loading state during fetch
+  Initial: true
+
+FILE: client/src/components/ThemeToggle.tsx
+-------------------------------------------
+
+STATE VARIABLES:
+
+isDark: boolean
+  Purpose: Current theme mode
+  Initial: Computed from localStorage or system preference
+
+================================================================================
+4. CLIENT FUNCTIONS AND HOOKS
+================================================================================
+
+FILE: client/src/pages/Home.tsx
+-------------------------------
+
+CALLBACK: handleSearch
+----------------------
+Signature: (query: string, type: "audio" | "lyric" | "both") => Promise<void>
+Purpose: Execute search and update results state
+Wrapped: useCallback with [toast] dependency
+
+Logic flow:
+  1. Set isSearching = true
+  2. Clear previous results
+  3. Fetch /api/search with query params
+  4. Parse JSON response
+  5. Update searchResults state
+  6. Show toast if no results
+  7. Catch and display errors
+  8. Set isSearching = false
+
+CALLBACK: handleDownload
+------------------------
+Signature: (video: YouTubeVideo) => Promise<void>
+Purpose: Download song and save to library
+Wrapped: useCallback with [toast] dependency
+
+Logic flow:
+  1. Check IndexedDB for existing download
+  2. Initialize progress in Map
+  3. POST to /api/download with video data
+  4. Read SSE stream with buffered parsing
+  5. Update progress on each event
+  6. On complete: save to IndexedDB, trigger file download
+  7. On error: update progress status, show toast
+
+FILE: client/src/lib/db.ts
+--------------------------
+
+FUNCTION: initDB
+----------------
+Signature: () => Promise<IDBDatabase>
+Purpose: Open IndexedDB connection, create schema if needed
+Returns: Database connection (cached)
+
+FUNCTION: saveSong
+------------------
+Signature: (song: SongMetadata) => Promise<void>
+Purpose: Insert or update song record
+Operation: IDBObjectStore.put (upsert)
+
+FUNCTION: getSong
+-----------------
+Signature: (id: string) => Promise<SongMetadata | undefined>
+Purpose: Retrieve song by primary key
+Operation: IDBObjectStore.get
+
+FUNCTION: getSongByVideoId
+--------------------------
+Signature: (videoId: string) => Promise<SongMetadata | undefined>
+Purpose: Retrieve song by videoId index
+Operation: IDBIndex.get
+
+FUNCTION: getAllSongs
+---------------------
+Signature: () => Promise<SongMetadata[]>
+Purpose: Retrieve all songs, sorted by date
+Operation: IDBObjectStore.getAll + JavaScript sort
+
+FUNCTION: deleteSong
+--------------------
+Signature: (id: string) => Promise<void>
+Purpose: Delete song by primary key
+Operation: IDBObjectStore.delete
+
+FUNCTION: updateSongMetadata
+----------------------------
+Signature: (id: string, metadata: Partial<SongMetadata>) => Promise<void>
+Purpose: Update specific fields on existing song
+Pattern: Read → Merge → Write
+
+FILE: client/src/components/SearchBar.tsx
+-----------------------------------------
+
+FUNCTION: handleSubmit
+----------------------
+Signature: (e: React.FormEvent) => void
+Purpose: Prevent default form submit, call onSearch prop
+
+FILE: client/src/components/Library.tsx
+---------------------------------------
+
+FUNCTION: loadSongs
+-------------------
+Signature: () => Promise<void>
+Purpose: Fetch all songs from IndexedDB and update state
+
+FUNCTION: handleDelete
+----------------------
+Signature: (id: string) => Promise<void>
+Purpose: Delete song from IndexedDB and update local state
+
+FUNCTION: formatDate
+--------------------
+Signature: (dateString: string) => string
+Purpose: Convert ISO date to human-readable format
+
+FILE: client/src/components/SearchResults.tsx
+---------------------------------------------
+
+FUNCTION: formatDate
+--------------------
+Signature: (dateString: string) => string
+Purpose: Convert ISO date to human-readable format
+
+FUNCTION: getProgressStatus
+---------------------------
+Signature: (videoId: string) => DownloadProgress | undefined
+Purpose: Look up progress from Map prop
+
+FILE: client/src/components/ThemeToggle.tsx
+-------------------------------------------
+
+FUNCTION: toggleTheme
+---------------------
+Signature: () => void
+Purpose: Toggle between dark and light mode
+Side effects: Updates localStorage, toggles DOM class
+
+================================================================================
+5. SHARED TYPES AND SCHEMAS
+================================================================================
+
+FILE: shared/schema.ts
+----------------------
+
+SCHEMAS (Zod):
+
+youtubeVideoSchema
+  Fields: videoId, title, channelTitle, thumbnail, publishedAt, description?
+  
+searchRequestSchema
+  Fields: query (required), type (default: "both")
+  
+searchResponseSchema
+  Fields: results (array), nextPageToken?
+  
+songMetadataSchema
+  Fields: id, videoId, title, artist?, album?, genre?, thumbnail, downloadedAt, filePath?
+  
+downloadRequestSchema
+  Fields: videoId, title, thumbnail
+  
+downloadProgressSchema
+  Fields: videoId, progress, status, message?, downloadUrl?
+  
+metadataResultSchema
+  Fields: artist?, album?, genre?, releaseYear?
+
+TYPES (TypeScript - derived from schemas):
+
+YouTubeVideo = z.infer<typeof youtubeVideoSchema>
+SearchRequest = z.infer<typeof searchRequestSchema>
+SearchResponse = z.infer<typeof searchResponseSchema>
+SongMetadata = z.infer<typeof songMetadataSchema>
+DownloadRequest = z.infer<typeof downloadRequestSchema>
+DownloadProgress = z.infer<typeof downloadProgressSchema>
+MetadataResult = z.infer<typeof metadataResultSchema>
+
+================================================================================
+6. CSS VARIABLES
+================================================================================
+
+FILE: client/src/index.css
+--------------------------
+
+THEME COLORS (HSL format: H S% L%):
+
+--background
+  Light: 0 0% 100% (white)
+  Dark: 0 0% 4% (near-black)
+
+--foreground
+  Light: 0 0% 5% (near-black)
+  Dark: 0 0% 98% (near-white)
+
+--primary
+  Light/Dark: 300 100% 50% (magenta)
+
+--accent
+  Light: 180 100% 40% (cyan)
+  Dark: 180 100% 45% (slightly brighter cyan)
+
+--card
+  Light: 0 0% 98% (off-white)
+  Dark: 0 0% 8% (dark gray)
+
+--muted
+  Light: 0 0% 96% (light gray)
+  Dark: 0 0% 14% (dark gray)
+
+--muted-foreground
+  Light: 0 0% 45% (medium gray)
+  Dark: 0 0% 60% (lighter gray)
+
+--destructive
+  Light: 0 84% 60% (red)
+  Dark: 0 72% 51% (darker red)
+
+ELEVATION OVERLAYS:
+
+--elevate-1
+  Light: rgba(0,0,0, .03)
+  Dark: rgba(255,255,255, .04)
+
+--elevate-2
+  Light: rgba(0,0,0, .08)
+  Dark: rgba(255,255,255, .09)
+
+TYPOGRAPHY:
+
+--font-sans: 'Inter', sans-serif
+--font-mono: 'JetBrains Mono', monospace
+
+SPACING:
+
+--radius: .5rem (8px border radius)
+--spacing: 0.25rem (4px base unit)
+
+================================================================================
+END OF DOCUMENT
+================================================================================
