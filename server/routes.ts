@@ -210,10 +210,55 @@ function sanitizeFilename(filename: string): string {
     .substring(0, 100);
 }
 
+async function searchITunesAlbumArt(artist: string, song: string): Promise<string | null> {
+  try {
+    const query = encodeURIComponent(`${artist} ${song}`);
+    const response = await fetch(
+      `https://itunes.apple.com/search?term=${query}&media=music&entity=song&limit=5`
+    );
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    if (data.results && data.results.length > 0) {
+      const artwork = data.results[0].artworkUrl100;
+      if (artwork) {
+        return artwork.replace('100x100bb', '600x600bb');
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error("iTunes search error:", error);
+    return null;
+  }
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  app.get("/api/album-art", async (req: Request, res: Response) => {
+    try {
+      const artist = req.query.artist as string;
+      const song = req.query.song as string;
+      
+      if (!artist && !song) {
+        return res.status(400).json({ message: "Artist or song name required" });
+      }
+      
+      const albumArt = await searchITunesAlbumArt(artist || "", song || "");
+      
+      if (albumArt) {
+        res.json({ albumArt, source: "itunes" });
+      } else {
+        res.json({ albumArt: null, source: null });
+      }
+    } catch (error) {
+      console.error("Album art search error:", error);
+      res.json({ albumArt: null, source: null });
+    }
+  });
   
   app.get("/api/search", async (req: Request, res: Response) => {
     try {

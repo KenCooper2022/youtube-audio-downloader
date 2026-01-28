@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Download, Play, Clock, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -34,6 +35,9 @@ export function SearchResults({
     return downloadProgress.get(videoId);
   };
 
+  const [albumArt, setAlbumArt] = useState<string | null>(null);
+  const [isLoadingArt, setIsLoadingArt] = useState(false);
+
   const getHighResThumbnail = (videoId: string) => {
     return `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
   };
@@ -68,20 +72,58 @@ export function SearchResults({
   const artist = parseArtistFromTitle(featuredResult.title);
   const songName = parseSongFromTitle(featuredResult.title);
 
+  useEffect(() => {
+    const fetchAlbumArt = async () => {
+      if (!artist && !songName) return;
+      
+      setIsLoadingArt(true);
+      try {
+        const params = new URLSearchParams();
+        if (artist) params.append("artist", artist);
+        if (songName) params.append("song", songName);
+        
+        const response = await fetch(`/api/album-art?${params.toString()}`);
+        const data = await response.json();
+        
+        if (data.albumArt) {
+          setAlbumArt(data.albumArt);
+        } else {
+          setAlbumArt(null);
+        }
+      } catch (error) {
+        console.error("Failed to fetch album art:", error);
+        setAlbumArt(null);
+      } finally {
+        setIsLoadingArt(false);
+      }
+    };
+
+    setAlbumArt(null);
+    fetchAlbumArt();
+  }, [featuredResult.videoId, artist, songName]);
+
+  const displayArt = albumArt || getHighResThumbnail(featuredResult.videoId);
+
   return (
     <div className="w-full max-w-3xl mx-auto mt-8">
       {/* Featured Album Art */}
       <div className="flex flex-col items-center mb-8">
         <div className="relative w-48 h-48 rounded-lg overflow-hidden shadow-lg border border-border bg-muted">
-          <img
-            src={getHighResThumbnail(featuredResult.videoId)}
-            alt="Album Art"
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = featuredResult.thumbnail;
-            }}
-            data-testid="img-album-cover"
-          />
+          {isLoadingArt ? (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="w-8 h-8 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <img
+              src={displayArt}
+              alt="Album Art"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = featuredResult.thumbnail;
+              }}
+              data-testid="img-album-cover"
+            />
+          )}
         </div>
         <div className="text-center mt-4">
           <h2 className="text-lg font-semibold text-foreground" data-testid="text-song-title">
