@@ -4,6 +4,9 @@ import { spawn } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as https from "https";
+import { storage } from "./storage";
+import { insertSongSchema } from "@shared/schema";
+import { randomUUID } from "crypto";
 
 const YOUTUBE_API_KEY = process.env.GOOGLE_API_KEY;
 const DOWNLOAD_DIR = path.join(process.cwd(), "downloads");
@@ -351,6 +354,192 @@ export async function registerRoutes(
     } catch (error) {
       console.error("File serve error:", error);
       res.status(500).json({ message: "Failed to serve file" });
+    }
+  });
+
+  // ============================================================================
+  // SONG CRUD ENDPOINTS (PostgreSQL Database)
+  // ============================================================================
+
+  /**
+   * GET /api/songs
+   * 
+   * Retrieves all songs from the database.
+   * SQL: SELECT * FROM songs ORDER BY downloaded_at DESC
+   * 
+   * Response: Array of Song objects
+   */
+  app.get("/api/songs", async (req: Request, res: Response) => {
+    try {
+      const songs = await storage.getAllSongs();
+      // Convert Date objects to ISO strings for JSON serialization
+      const serialized = songs.map(song => ({
+        ...song,
+        downloadedAt: song.downloadedAt.toISOString(),
+      }));
+      res.json(serialized);
+    } catch (error) {
+      console.error("Get songs error:", error);
+      res.status(500).json({ message: "Failed to retrieve songs" });
+    }
+  });
+
+  /**
+   * GET /api/songs/:id
+   * 
+   * Retrieves a single song by primary key.
+   * SQL: SELECT * FROM songs WHERE id = $1
+   * 
+   * Response: Song object or 404
+   */
+  app.get("/api/songs/:id", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const song = await storage.getSong(id);
+      
+      if (!song) {
+        return res.status(404).json({ message: "Song not found" });
+      }
+      
+      res.json({
+        ...song,
+        downloadedAt: song.downloadedAt.toISOString(),
+      });
+    } catch (error) {
+      console.error("Get song error:", error);
+      res.status(500).json({ message: "Failed to retrieve song" });
+    }
+  });
+
+  /**
+   * GET /api/songs/video/:videoId
+   * 
+   * Retrieves a song by YouTube video ID.
+   * SQL: SELECT * FROM songs WHERE video_id = $1
+   * 
+   * Used to check if a video has already been downloaded.
+   * Response: Song object or 404
+   */
+  app.get("/api/songs/video/:videoId", async (req: Request, res: Response) => {
+    try {
+      const { videoId } = req.params;
+      const song = await storage.getSongByVideoId(videoId);
+      
+      if (!song) {
+        return res.status(404).json({ message: "Song not found" });
+      }
+      
+      res.json({
+        ...song,
+        downloadedAt: song.downloadedAt.toISOString(),
+      });
+    } catch (error) {
+      console.error("Get song by video ID error:", error);
+      res.status(500).json({ message: "Failed to retrieve song" });
+    }
+  });
+
+  /**
+   * POST /api/songs
+   * 
+   * Creates a new song record in the database.
+   * SQL: INSERT INTO songs (...) VALUES (...) RETURNING *
+   * 
+   * Request body: Song data (id, videoId, title, artist?, album?, genre?, thumbnail, filePath?)
+   * Response: Created Song object
+   */
+  app.post("/api/songs", async (req: Request, res: Response) => {
+    try {
+      const songData = {
+        id: req.body.id || randomUUID(),
+        videoId: req.body.videoId,
+        title: req.body.title,
+        artist: req.body.artist || null,
+        album: req.body.album || null,
+        genre: req.body.genre || null,
+        thumbnail: req.body.thumbnail,
+        filePath: req.body.filePath || null,
+      };
+
+      // Validate with Zod schema
+      const validation = insertSongSchema.safeParse(songData);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Invalid song data",
+          errors: validation.error.errors,
+        });
+      }
+
+      const song = await storage.createSong(validation.data);
+      
+      res.status(201).json({
+        ...song,
+        downloadedAt: song.downloadedAt.toISOString(),
+      });
+    } catch (error: any) {
+      console.error("Create song error:", error);
+      
+      // Handle unique constraint violation (duplicate videoId)
+      if (error.code === '23505') {
+        return res.status(409).json({ message: "Song already exists" });
+      }
+      
+      res.status(500).json({ message: "Failed to create song" });
+    }
+  });
+
+  /**
+   * PATCH /api/songs/:id
+   * 
+   * Updates a song's metadata.
+   * SQL: UPDATE songs SET ... WHERE id = $1 RETURNING *
+   * 
+   * Request body: Partial song data
+   * Response: Updated Song object
+   */
+  app.patch("/api/songs/:id", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+
+      const song = await storage.updateSong(id, updates);
+      
+      if (!song) {
+        return res.status(404).json({ message: "Song not found" });
+      }
+      
+      res.json({
+        ...song,
+        downloadedAt: song.downloadedAt.toISOString(),
+      });
+    } catch (error) {
+      console.error("Update song error:", error);
+      res.status(500).json({ message: "Failed to update song" });
+    }
+  });
+
+  /**
+   * DELETE /api/songs/:id
+   * 
+   * Deletes a song from the database.
+   * SQL: DELETE FROM songs WHERE id = $1
+   * 
+   * Note: Does not delete the physical MP3 file.
+   * Response: Success message or 404
+   */
+  app.delete("/api/songs/:id", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteSong(id);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: "Song not found" });
+      }
+      
+      res.json({ message: "Song deleted successfully" });
+    } catch (error) {
+      console.error("Delete song error:", error);
+      res.status(500).json({ message: "Failed to delete song" });
     }
   });
 
