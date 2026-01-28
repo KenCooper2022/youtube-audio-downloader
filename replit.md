@@ -15,6 +15,7 @@ Comprehensive technical documentation is available in the `docs/` directory:
 - **docs/04-DATA-SCHEMAS.txt** - Data structures and type definitions
 - **docs/05-DESIGN-DECISIONS.txt** - Architectural decisions and rationale
 - **docs/06-VARIABLE-FUNCTION-REFERENCE.txt** - Complete code reference index
+- **docs/07-DATABASE-DOCUMENTATION.txt** - PostgreSQL database schema, SQL operations, and integration guide
 
 ## User Preferences
 
@@ -28,12 +29,12 @@ Preferred communication style: Simple, everyday language.
 - **State Management**: TanStack React Query for server state, local React state for UI
 - **Styling**: Tailwind CSS with custom theme configuration (professional beige/white color scheme with IBM Plex Mono font)
 - **UI Components**: shadcn/ui component library built on Radix UI primitives
-- **Local Storage**: IndexedDB for storing downloaded song metadata (browser-side database)
 - **Build Tool**: Vite for development and production builds
 
 ### Backend Architecture
 - **Framework**: Express.js (v5) with TypeScript
-- **API Design**: REST endpoints for search and download operations
+- **API Design**: REST endpoints for search, download, and song CRUD operations
+- **Database**: PostgreSQL with Drizzle ORM for type-safe queries
 - **YouTube Integration**: Uses Google YouTube Data API for search, yt-dlp for downloading
 - **File Storage**: Downloads stored in a local `downloads` directory
 - **Progress Streaming**: Server-Sent Events (SSE) for real-time download progress
@@ -45,10 +46,16 @@ Preferred communication style: Simple, everyday language.
 | `/api/search` | GET | Search YouTube for music videos |
 | `/api/download` | POST | Download audio as MP3 (SSE stream) |
 | `/api/files/:filename` | GET | Serve downloaded MP3 files |
+| `/api/songs` | GET | Get all songs from database |
+| `/api/songs` | POST | Create a new song record |
+| `/api/songs/:id` | GET | Get a song by ID |
+| `/api/songs/:id` | PATCH | Update a song's metadata |
+| `/api/songs/:id` | DELETE | Delete a song from database |
+| `/api/songs/video/:videoId` | GET | Get song by YouTube video ID |
 
 ### Key Design Decisions
 
-1. **Client-side metadata storage**: Song metadata is stored in IndexedDB rather than a server database. This keeps the app simple and allows offline access to library information.
+1. **Server-side database storage**: Song metadata is stored in PostgreSQL via Drizzle ORM. This enables data persistence across devices and sessions.
 
 2. **Monorepo structure**: The project uses a shared directory for schemas and types used by both frontend and backend, ensuring type safety across the stack.
 
@@ -85,11 +92,11 @@ project-root/
 - **yt-dlp**: Command-line tool for downloading audio from YouTube videos
 - **FFmpeg**: Audio conversion tool used by yt-dlp
 
-### Client-Side Storage
-- **IndexedDB**: Browser-side storage for song library metadata
-  - Database: MusicDownloaderDB
-  - Store: songs
-  - Indexes: videoId (unique), artist, downloadedAt
+### Database
+- **PostgreSQL**: Server-side relational database (Neon-backed via Replit)
+  - Table: songs
+  - Columns: id, video_id (unique), title, artist, album, genre, thumbnail, file_path, downloaded_at
+  - ORM: Drizzle ORM for type-safe queries
 
 ### Key NPM Packages
 - `@tanstack/react-query`: Data fetching and caching
