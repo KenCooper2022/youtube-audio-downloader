@@ -206,8 +206,8 @@ export default function Home() {
                 <Download className="h-5 w-5 text-foreground" />
               </div>
               <div>
-                <h1 className="text-lg font-medium tracking-tight text-foreground uppercase">SoundGrab</h1>
-                <p className="text-xs text-muted-foreground tracking-wider">AUDIO_EXTRACTION_SYSTEM</p>
+                <h1 className="text-lg font-medium tracking-tight text-foreground uppercase">Audio Downloader</h1>
+                <p className="text-xs text-muted-foreground tracking-wider">MP3_EXTRACTION</p>
               </div>
             </div>
             <ThemeToggle />
@@ -264,7 +264,7 @@ export default function Home() {
       <footer className="border-t border-border mt-16">
         <div className="container mx-auto px-4 py-6">
           <p className="text-center text-xs text-muted-foreground tracking-wider uppercase">
-            SoundGrab v1.0 // Personal use only // Respect copyright
+            Personal use only // Respect copyright
           </p>
         </div>
       </footer>

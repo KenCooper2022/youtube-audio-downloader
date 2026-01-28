@@ -2,7 +2,7 @@
 
 ## Overview
 
-SoundGrab is a YouTube audio downloader application that allows users to search for songs on YouTube and download them as MP3 files. The app features a React frontend with a search interface, real-time download progress tracking, and a local library for managing downloaded songs. The backend is an Express server that handles YouTube API searches and audio downloads using yt-dlp.
+This is a YouTube audio downloader application that allows users to search for songs on YouTube and download them as MP3 files. The app features a React frontend with a search interface, real-time download progress tracking, and a local library for managing downloaded songs. The backend is an Express server that handles YouTube API searches and audio downloads using yt-dlp.
 
 ## Technical Documentation
 
