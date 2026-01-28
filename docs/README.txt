@@ -116,13 +116,31 @@ DOCUMENT LIST
     - Glossary of terms
     - Next steps for learning
 
+09-NODEJS-FUNDAMENTALS.txt
+  Purpose: Deep dive into Node.js for complete beginners
+  Audience: Anyone new to Node.js, server-side JavaScript
+  Contents:
+    - What Node.js is (runs JavaScript outside browsers)
+    - How Node.js works (Event Loop, non-blocking I/O)
+    - Server vs Browser JavaScript (what's same, what's different)
+    - Modules explained (CommonJS vs ES Modules)
+    - NPM package manager (package.json, node_modules)
+    - Asynchronous JavaScript (callbacks, Promises, async/await)
+    - Core Node.js modules (fs, path, http, process, child_process)
+    - Express.js framework (routing, middleware, req/res objects)
+    - How this app uses Node.js (with code examples)
+    - Common patterns and best practices
+    - Debugging Node.js applications
+    - Glossary of Node.js terms
+
 ================================================================================
 READING ORDER RECOMMENDATIONS
 ================================================================================
 
 FOR ABSOLUTE BEGINNERS (no React/Node/Express experience):
   1. 08-BEGINNERS-GUIDE.txt (START HERE - explains everything from scratch)
-  2. 01-ARCHITECTURE-OVERVIEW.txt (when ready for more detail)
+  2. 09-NODEJS-FUNDAMENTALS.txt (deep dive into Node.js and Express)
+  3. 01-ARCHITECTURE-OVERVIEW.txt (when ready for more detail)
 
 FOR NEW TEAM MEMBERS (familiar with web development):
   1. 01-ARCHITECTURE-OVERVIEW.txt (understand the big picture)
