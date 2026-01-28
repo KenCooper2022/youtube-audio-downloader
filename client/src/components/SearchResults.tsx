@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Download, Play, Clock, User } from "lucide-react";
+import { Download, Play, Clock, User, ImageDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -134,6 +134,21 @@ export function SearchResults({
               {artist}
             </p>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-3 gap-1.5 text-xs uppercase tracking-wider"
+            onClick={() => {
+              const filename = `${artist ? artist + " - " : ""}${songName || "album-art"}.jpg`;
+              const imageUrl = displayArt;
+              window.open(`/api/download-image?url=${encodeURIComponent(imageUrl)}&filename=${encodeURIComponent(filename)}`, '_blank');
+            }}
+            disabled={isLoadingArt}
+            data-testid="button-download-art"
+          >
+            <ImageDown className="h-3 w-3" />
+            Save Cover
+          </Button>
         </div>
       </div>
 

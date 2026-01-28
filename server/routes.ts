@@ -238,6 +238,32 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
+  app.get("/api/download-image", async (req: Request, res: Response) => {
+    try {
+      const url = req.query.url as string;
+      const filename = (req.query.filename as string) || "album-art.jpg";
+      
+      if (!url) {
+        return res.status(400).json({ message: "Image URL is required" });
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        return res.status(404).json({ message: "Image not found" });
+      }
+
+      const contentType = response.headers.get("content-type") || "image/jpeg";
+      const buffer = await response.arrayBuffer();
+
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.send(Buffer.from(buffer));
+    } catch (error) {
+      console.error("Image download error:", error);
+      res.status(500).json({ message: "Failed to download image" });
+    }
+  });
+
   app.get("/api/album-art", async (req: Request, res: Response) => {
     try {
       const artist = req.query.artist as string;
