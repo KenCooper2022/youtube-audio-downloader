@@ -327,7 +327,8 @@ export async function registerRoutes(
 
   app.get("/api/files/:filename", (req: Request, res: Response) => {
     try {
-      const filename = decodeURIComponent(req.params.filename);
+      const rawFilename = req.params.filename;
+      const filename = decodeURIComponent(Array.isArray(rawFilename) ? rawFilename[0] : rawFilename);
       const filePath = path.join(DOWNLOAD_DIR, filename);
 
       if (!fs.existsSync(filePath)) {
