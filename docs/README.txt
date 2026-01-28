@@ -98,11 +98,33 @@ DOCUMENT LIST
     - Advanced query examples
     - Security considerations
 
+08-BEGINNERS-GUIDE.txt
+  Purpose: Complete beginner's guide for those new to React, Node, and Express
+  Audience: Beginners, non-technical stakeholders, new developers
+  Contents:
+    - The big picture - what this app does (restaurant analogy)
+    - How the web works (HTTP, requests, responses)
+    - Project structure explained
+    - Understanding Node.js and Express
+    - Understanding React (components, state, props)
+    - How the frontend works (file by file)
+    - How the backend works (endpoints explained)
+    - Data flow walkthrough (following a search request)
+    - Key technologies explained (TypeScript, async/await, Tailwind, Drizzle)
+    - How to start reading the code
+    - Common patterns you'll see
+    - Glossary of terms
+    - Next steps for learning
+
 ================================================================================
 READING ORDER RECOMMENDATIONS
 ================================================================================
 
-FOR NEW TEAM MEMBERS:
+FOR ABSOLUTE BEGINNERS (no React/Node/Express experience):
+  1. 08-BEGINNERS-GUIDE.txt (START HERE - explains everything from scratch)
+  2. 01-ARCHITECTURE-OVERVIEW.txt (when ready for more detail)
+
+FOR NEW TEAM MEMBERS (familiar with web development):
   1. 01-ARCHITECTURE-OVERVIEW.txt (understand the big picture)
   2. 05-DESIGN-DECISIONS.txt (understand why things are built this way)
   3. 04-DATA-SCHEMAS.txt (understand the data model)
