@@ -161,6 +161,7 @@ function downloadAudio(
       "--no-playlist",
       "--newline",
       "--progress",
+      "--extractor-args", "youtube:player_client=android_vr",
       `https://www.youtube.com/watch?v=${videoId}`,
     ]);
 
