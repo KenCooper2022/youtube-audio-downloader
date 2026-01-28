@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Music, Headphones, Sparkles } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Music, Headphones, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SearchBar } from "@/components/SearchBar";
@@ -198,19 +198,16 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-border bg-background">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary to-accent blur-lg opacity-50" />
-                <div className="relative p-2 rounded-xl bg-gradient-to-r from-primary to-accent">
-                  <Headphones className="h-6 w-6 text-white" />
-                </div>
+              <div className="p-2 border border-border rounded-md bg-card">
+                <Download className="h-5 w-5 text-foreground" />
               </div>
               <div>
-                <h1 className="text-xl font-bold gradient-text">SoundGrab</h1>
-                <p className="text-xs text-muted-foreground">YouTube to MP3</p>
+                <h1 className="text-lg font-medium tracking-tight text-foreground uppercase">SoundGrab</h1>
+                <p className="text-xs text-muted-foreground tracking-wider">AUDIO_EXTRACTION_SYSTEM</p>
               </div>
             </div>
             <ThemeToggle />
@@ -219,29 +216,27 @@ export default function Home() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-4">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium text-primary">Free YouTube Audio Downloader</span>
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-3">
-            Download Music from{" "}
-            <span className="gradient-text">YouTube</span>
+        <div className="text-center mb-10">
+          <p className="text-xs text-muted-foreground tracking-widest uppercase mb-2">
+            // YOUTUBE AUDIO DOWNLOADER
+          </p>
+          <h2 className="text-2xl font-medium text-foreground tracking-tight mb-3">
+            Extract Audio from YouTube
           </h2>
-          <p className="text-muted-foreground max-w-lg mx-auto">
-            Search for any song, lyric video, or audio track and download it as an MP3 file. 
-            Your downloads are saved locally.
+          <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
+            Search for songs, lyric videos, or audio tracks. 
+            Download as MP3 files. Library stored locally.
           </p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
-            <TabsTrigger value="search" className="gap-2" data-testid="tab-search">
-              <Music className="h-4 w-4" />
+          <TabsList className="grid w-full max-w-sm mx-auto grid-cols-2 mb-8">
+            <TabsTrigger value="search" className="gap-2 text-xs uppercase tracking-wider" data-testid="tab-search">
+              <Music className="h-3.5 w-3.5" />
               Search
             </TabsTrigger>
-            <TabsTrigger value="library" className="gap-2" data-testid="tab-library">
-              <Headphones className="h-4 w-4" />
+            <TabsTrigger value="library" className="gap-2 text-xs uppercase tracking-wider" data-testid="tab-library">
+              <Headphones className="h-3.5 w-3.5" />
               Library
             </TabsTrigger>
           </TabsList>
@@ -250,7 +245,7 @@ export default function Home() {
             <SearchBar onSearch={handleSearch} isLoading={isSearching} />
             <LoadingBar 
               isLoading={isSearching} 
-              message="Searching YouTube for music..." 
+              message="Searching YouTube..." 
             />
             <SearchResults
               results={searchResults}
@@ -266,11 +261,10 @@ export default function Home() {
         </Tabs>
       </main>
 
-      <footer className="border-t border-border/50 mt-16">
+      <footer className="border-t border-border mt-16">
         <div className="container mx-auto px-4 py-6">
-          <p className="text-center text-sm text-muted-foreground">
-            SoundGrab - Download audio from YouTube for personal use only. 
-            Respect copyright and artist rights.
+          <p className="text-center text-xs text-muted-foreground tracking-wider uppercase">
+            SoundGrab v1.0 // Personal use only // Respect copyright
           </p>
         </div>
       </footer>

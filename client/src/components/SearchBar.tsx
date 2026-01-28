@@ -27,18 +27,18 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto">
-      <div className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit} className="w-full max-w-xl mx-auto">
+      <div className="flex flex-col gap-3">
         <div className="relative">
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
-            <Search className="h-5 w-5" />
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+            <Search className="h-4 w-4" />
           </div>
           <Input
             type="search"
-            placeholder="Search for a song, artist, or lyrics..."
+            placeholder="Enter song, artist, or lyrics..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="pl-12 pr-4 h-14 text-lg bg-card border-2 border-border focus:border-primary transition-colors rounded-xl"
+            className="pl-10 pr-4 h-11 text-sm bg-card border border-border focus:border-foreground/30 transition-colors font-mono"
             disabled={isLoading}
             data-testid="input-search"
           />
@@ -50,26 +50,26 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
             onValueChange={(value) => setSearchType(value as "audio" | "lyric" | "both")}
             disabled={isLoading}
           >
-            <SelectTrigger className="w-40" data-testid="select-search-type">
-              <SelectValue placeholder="Search type" />
+            <SelectTrigger className="w-36 text-xs uppercase tracking-wider" data-testid="select-search-type">
+              <SelectValue placeholder="Type" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="both" data-testid="option-both">
                 <div className="flex items-center gap-2">
-                  <Music className="h-4 w-4" />
-                  <span>All Music</span>
+                  <Music className="h-3 w-3" />
+                  <span className="text-xs uppercase">All</span>
                 </div>
               </SelectItem>
               <SelectItem value="audio" data-testid="option-audio">
                 <div className="flex items-center gap-2">
-                  <Mic2 className="h-4 w-4" />
-                  <span>Audio Only</span>
+                  <Mic2 className="h-3 w-3" />
+                  <span className="text-xs uppercase">Audio</span>
                 </div>
               </SelectItem>
               <SelectItem value="lyric" data-testid="option-lyric">
                 <div className="flex items-center gap-2">
-                  <Search className="h-4 w-4" />
-                  <span>Lyric Videos</span>
+                  <Search className="h-3 w-3" />
+                  <span className="text-xs uppercase">Lyrics</span>
                 </div>
               </SelectItem>
             </SelectContent>
@@ -78,13 +78,13 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
           <Button
             type="submit"
             disabled={!query.trim() || isLoading}
-            className="flex-1 sm:flex-none h-10 px-8 font-semibold"
+            className="flex-1 sm:flex-none h-9 px-6 text-xs uppercase tracking-wider font-medium"
             data-testid="button-search"
           >
             {isLoading ? (
               <span className="flex items-center gap-2">
-                <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Searching...
+                <span className="h-3 w-3 border border-current/30 border-t-current rounded-full animate-spin" />
+                Searching
               </span>
             ) : (
               "Search"

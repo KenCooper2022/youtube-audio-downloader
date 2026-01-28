@@ -35,17 +35,17 @@ export function SearchResults({
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto mt-8">
+    <div className="w-full max-w-3xl mx-auto mt-8">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-foreground">
-          Search Results
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-widest">
+          // Results
         </h2>
-        <Badge variant="secondary" className="text-sm">
-          {results.length} {results.length === 1 ? "result" : "results"}
-        </Badge>
+        <span className="text-xs text-muted-foreground font-mono">
+          [{results.length}]
+        </span>
       </div>
 
-      <div className="grid gap-4">
+      <div className="grid gap-3">
         {results.map((video) => {
           const progress = getProgressStatus(video.videoId);
           const isDownloaded = downloadedVideos.has(video.videoId);
@@ -54,42 +54,42 @@ export function SearchResults({
           return (
             <Card
               key={video.videoId}
-              className="p-4 hover-elevate transition-all duration-200"
+              className="p-4 hover-elevate transition-all duration-150 border border-border"
               data-testid={`card-result-${video.videoId}`}
             >
               <div className="flex gap-4">
-                <div className="relative flex-shrink-0 w-32 h-24 sm:w-40 sm:h-28 rounded-lg overflow-hidden bg-muted">
+                <div className="relative flex-shrink-0 w-28 h-20 rounded overflow-hidden bg-muted border border-border">
                   <img
                     src={video.thumbnail}
                     alt={video.title}
                     className="w-full h-full object-cover"
                     loading="lazy"
                   />
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                  <div className="absolute inset-0 bg-foreground/60 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                     <a
                       href={`https://youtube.com/watch?v=${video.videoId}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 rounded-full bg-white/20 backdrop-blur"
+                      className="p-1.5 rounded border border-background/30"
                       data-testid={`link-preview-${video.videoId}`}
                     >
-                      <Play className="h-6 w-6 text-white" />
+                      <Play className="h-4 w-4 text-background" />
                     </a>
                   </div>
                 </div>
 
                 <div className="flex-1 min-w-0 flex flex-col justify-between">
                   <div>
-                    <h3 className="font-medium text-foreground line-clamp-2 mb-1" title={video.title}>
+                    <h3 className="text-sm font-medium text-foreground line-clamp-2 mb-1.5 leading-snug" title={video.title}>
                       {video.title}
                     </h3>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground font-mono">
                       <span className="flex items-center gap-1">
-                        <User className="h-3.5 w-3.5" />
+                        <User className="h-3 w-3" />
                         {video.channelTitle}
                       </span>
                       <span className="flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5" />
+                        <Clock className="h-3 w-3" />
                         {formatDate(video.publishedAt)}
                       </span>
                     </div>
@@ -97,28 +97,30 @@ export function SearchResults({
 
                   <div className="flex items-center gap-2 mt-3">
                     {isDownloaded ? (
-                      <Badge variant="secondary" className="bg-accent/20 text-accent border-accent/30">
+                      <Badge variant="secondary" className="text-xs uppercase tracking-wider font-mono">
                         Downloaded
                       </Badge>
                     ) : isDownloading ? (
                       <div className="flex-1">
-                        <div className="flex items-center justify-between text-sm mb-1">
+                        <div className="flex items-center justify-between text-xs mb-1 font-mono">
                           <span className="text-muted-foreground">{progress?.message || "Processing..."}</span>
-                          <span className="text-primary font-medium">{progress?.progress || 0}%</span>
+                          <span className="text-foreground">{progress?.progress || 0}%</span>
                         </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-muted rounded-sm overflow-hidden">
                           <div 
-                            className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-300 rounded-full"
+                            className="h-full bg-foreground transition-all duration-300"
                             style={{ width: `${progress?.progress || 0}%` }}
                           />
                         </div>
                       </div>
                     ) : progress?.status === "error" ? (
                       <div className="flex items-center gap-2">
-                        <Badge variant="destructive">Error</Badge>
+                        <Badge variant="destructive" className="text-xs uppercase">Error</Badge>
                         <Button
                           size="sm"
+                          variant="outline"
                           onClick={() => onDownload(video)}
+                          className="text-xs uppercase tracking-wider"
                           data-testid={`button-retry-${video.videoId}`}
                         >
                           Retry
@@ -128,11 +130,11 @@ export function SearchResults({
                       <Button
                         size="sm"
                         onClick={() => onDownload(video)}
-                        className="gap-2"
+                        className="gap-1.5 text-xs uppercase tracking-wider"
                         data-testid={`button-download-${video.videoId}`}
                       >
-                        <Download className="h-4 w-4" />
-                        Download MP3
+                        <Download className="h-3 w-3" />
+                        Download
                       </Button>
                     )}
                   </div>

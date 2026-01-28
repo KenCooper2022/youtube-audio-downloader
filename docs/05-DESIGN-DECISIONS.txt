@@ -278,44 +278,47 @@ TRADE-OFFS:
 4. UI/UX DESIGN DECISIONS
 ================================================================================
 
-DECISION: Dark Mode Default with Toggle
----------------------------------------
+DECISION: Light/Dark Mode Toggle with System Preference
+-------------------------------------------------------
 ALTERNATIVES CONSIDERED:
 - Light mode only: Simple but dated
 - System preference only: No manual control
 - Separate theme pages: Overcomplicated
 
 RATIONALE:
-1. Music apps traditionally use dark themes
-2. Reduces eye strain during extended use
-3. Makes magenta/cyan accents pop
-4. Toggle respects user preference
+1. Professional apps support both themes
+2. System preference provides sensible default
+3. Manual toggle respects user control
+4. Warm tones work well in both modes
 
 IMPLEMENTATION:
 - localStorage persistence
 - Falls back to system preference
 - Instant toggle (no page reload)
+- Warm beige tones in light mode, warm browns in dark mode
 
 --------------------------------------------------------------------------------
 
-DECISION: Magenta/Cyan Color Palette
-------------------------------------
+DECISION: Professional Beige/White Color Palette
+------------------------------------------------
 ALTERNATIVES CONSIDERED:
+- Magenta/Cyan: Too flashy, less professional
 - Blue/Purple: Generic, not distinctive
 - Green/Yellow: Not music-associated
 - Red/Orange: Too aggressive
 
 RATIONALE:
-1. User specifically requested magenta/black/white/cyan
-2. Complementary colors (opposite on color wheel)
-3. High contrast for accessibility
-4. Vibrant, modern aesthetic
+1. User requested professional, subdued aesthetic
+2. Beige/white evokes technical, industrial design
+3. Warm tones are easier on the eyes for extended use
+4. Monochromatic palette focuses attention on content
 
 COLOR VALUES:
-- Primary (Magenta): HSL(300, 100%, 50%) = #FF00FF
-- Accent (Cyan): HSL(180, 100%, 40-45%) = #00CCCC
-- Background: Near-black (4% lightness) in dark mode
-- Foreground: Near-white (98% lightness) in dark mode
+- Primary: HSL(30, 15%, 25%) = Warm dark brown
+- Background: HSL(40, 20%, 98%) = Off-white with warm tint
+- Card: HSL(40, 25%, 96%) = Subtle beige
+- Foreground: HSL(30, 10%, 15%) = Dark charcoal
+- Muted: HSL(35, 12%, 93%) = Light beige for secondary elements
 
 --------------------------------------------------------------------------------
 

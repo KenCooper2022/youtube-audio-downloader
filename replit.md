@@ -26,7 +26,7 @@ Preferred communication style: Simple, everyday language.
 - **Framework**: React with TypeScript
 - **Routing**: Wouter for lightweight client-side routing
 - **State Management**: TanStack React Query for server state, local React state for UI
-- **Styling**: Tailwind CSS with custom theme configuration (magenta, white, black, cyan color scheme)
+- **Styling**: Tailwind CSS with custom theme configuration (professional beige/white color scheme with IBM Plex Mono font)
 - **UI Components**: shadcn/ui component library built on Radix UI primitives
 - **Local Storage**: IndexedDB for storing downloaded song metadata (browser-side database)
 - **Build Tool**: Vite for development and production builds
@@ -54,7 +54,7 @@ Preferred communication style: Simple, everyday language.
 
 3. **Schema validation**: Zod is used for runtime schema validation on both client and server.
 
-4. **Dark mode by default**: The app respects user preference but defaults to dark mode with a vibrant magenta/cyan color scheme.
+4. **Professional design**: The app uses a subdued beige/white color scheme with IBM Plex Mono monospace font for a technical, professional aesthetic.
 
 5. **Server-Sent Events**: Download progress is streamed to the client via SSE for real-time feedback.
 
