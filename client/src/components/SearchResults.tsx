@@ -34,8 +34,67 @@ export function SearchResults({
     return downloadProgress.get(videoId);
   };
 
+  const getHighResThumbnail = (videoId: string) => {
+    return `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
+  };
+
+  const parseArtistFromTitle = (title: string) => {
+    const patterns = [
+      /^(.+?)\s*[-–—]\s*.+/,
+      /^(.+?)\s*[|]\s*.+/,
+      /^(.+?)\s*ft\.?\s*.+/i,
+      /^(.+?)\s*feat\.?\s*.+/i,
+    ];
+    for (const pattern of patterns) {
+      const match = title.match(pattern);
+      if (match) return match[1].trim();
+    }
+    return null;
+  };
+
+  const parseSongFromTitle = (title: string) => {
+    const patterns = [
+      /^.+?\s*[-–—]\s*(.+?)(?:\s*[\(\[]|$)/,
+      /^.+?\s*[|]\s*(.+?)(?:\s*[\(\[]|$)/,
+    ];
+    for (const pattern of patterns) {
+      const match = title.match(pattern);
+      if (match) return match[1].trim();
+    }
+    return title;
+  };
+
+  const featuredResult = results[0];
+  const artist = parseArtistFromTitle(featuredResult.title);
+  const songName = parseSongFromTitle(featuredResult.title);
+
   return (
     <div className="w-full max-w-3xl mx-auto mt-8">
+      {/* Featured Album Art */}
+      <div className="flex flex-col items-center mb-8">
+        <div className="relative w-48 h-48 rounded-lg overflow-hidden shadow-lg border border-border bg-muted">
+          <img
+            src={getHighResThumbnail(featuredResult.videoId)}
+            alt="Album Art"
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = featuredResult.thumbnail;
+            }}
+            data-testid="img-album-cover"
+          />
+        </div>
+        <div className="text-center mt-4">
+          <h2 className="text-lg font-semibold text-foreground" data-testid="text-song-title">
+            {songName}
+          </h2>
+          {artist && (
+            <p className="text-sm text-muted-foreground mt-1" data-testid="text-artist-name">
+              {artist}
+            </p>
+          )}
+        </div>
+      </div>
+
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-widest">
           // Results
