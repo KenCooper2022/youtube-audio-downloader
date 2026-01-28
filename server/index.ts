@@ -2,6 +2,25 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { execSync } from "child_process";
+import fs from "fs";
+
+async function ensureYtdlp() {
+  const ytdlpPath = "/tmp/yt-dlp";
+  if (!fs.existsSync(ytdlpPath)) {
+    console.log("Downloading latest yt-dlp...");
+    try {
+      execSync(
+        `curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ${ytdlpPath} && chmod +x ${ytdlpPath}`,
+        { stdio: "inherit" }
+      );
+      const version = execSync(`${ytdlpPath} --version`).toString().trim();
+      console.log(`yt-dlp ${version} ready`);
+    } catch (err) {
+      console.error("Failed to download yt-dlp, falling back to system version");
+    }
+  }
+}
 
 const app = express();
 const httpServer = createServer(app);
@@ -60,6 +79,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  await ensureYtdlp();
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

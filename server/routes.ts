@@ -152,7 +152,8 @@ function downloadAudio(
   onProgress: (progress: number, message: string) => void
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const ytdlp = spawn("yt-dlp", [
+    const ytdlpPath = process.env.YTDLP_PATH || "/tmp/yt-dlp";
+    const ytdlp = spawn(ytdlpPath, [
       "-x",
       "--audio-format", "mp3",
       "--audio-quality", "0",
