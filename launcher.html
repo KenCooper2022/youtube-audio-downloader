@@ -21,7 +21,7 @@
     }
     .container {
       text-align: center;
-      max-width: 400px;
+      max-width: 500px;
     }
     .icon {
       width: 80px;
@@ -48,7 +48,7 @@
     p {
       color: rgba(255, 255, 255, 0.7);
       font-size: 14px;
-      margin-bottom: 32px;
+      margin-bottom: 24px;
     }
     .button {
       display: inline-block;
@@ -61,6 +61,8 @@
       font-weight: 600;
       transition: transform 0.2s, box-shadow 0.2s;
       box-shadow: 0 4px 20px rgba(233, 69, 96, 0.4);
+      cursor: pointer;
+      border: none;
     }
     .button:hover {
       transform: translateY(-2px);
@@ -69,23 +71,74 @@
     .button:active {
       transform: translateY(0);
     }
-    .note {
-      margin-top: 24px;
-      padding: 16px;
+    .instructions {
+      margin-top: 32px;
+      padding: 20px;
       background: rgba(255, 255, 255, 0.05);
-      border-radius: 8px;
+      border-radius: 12px;
       border: 1px solid rgba(255, 255, 255, 0.1);
+      text-align: left;
     }
-    .note p {
-      font-size: 12px;
-      margin-bottom: 0;
-      color: rgba(255, 255, 255, 0.5);
+    .instructions h2 {
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
     }
-    .note code {
+    .instructions ol {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 13px;
+      padding-left: 20px;
+      line-height: 1.8;
+    }
+    .instructions li {
+      margin-bottom: 8px;
+    }
+    .instructions a {
+      color: #e94560;
+      text-decoration: none;
+    }
+    .instructions a:hover {
+      text-decoration: underline;
+    }
+    .url-input {
+      width: 100%;
+      padding: 12px 16px;
+      margin-top: 16px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
       background: rgba(255, 255, 255, 0.1);
-      padding: 2px 6px;
-      border-radius: 4px;
+      color: white;
+      font-size: 14px;
       font-family: monospace;
+    }
+    .url-input::placeholder {
+      color: rgba(255, 255, 255, 0.4);
+    }
+    .url-input:focus {
+      outline: none;
+      border-color: #e94560;
+    }
+    .save-btn {
+      margin-top: 12px;
+      padding: 10px 24px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      color: white;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .save-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+    .status {
+      margin-top: 12px;
+      font-size: 12px;
+      color: #4ade80;
     }
   </style>
 </head>
@@ -97,20 +150,57 @@
       </svg>
     </div>
     <h1>YouTube Audio Downloader</h1>
-    <p>Search, download, and organize your music collection</p>
+    <p>Personal music collection tool</p>
     
-    <a href="https://YOUR-APP-NAME.replit.app" class="button" id="launchBtn">
+    <button class="button" id="launchBtn" onclick="launchApp()">
       Launch App
-    </a>
+    </button>
     
-    <div class="note">
-      <p>Replace <code>YOUR-APP-NAME</code> in this file with your actual Replit app URL after publishing.</p>
+    <div class="instructions">
+      <h2>Setup Instructions</h2>
+      <ol>
+        <li>Go to <a href="https://replit.com" target="_blank">Replit.com</a> and open your project</li>
+        <li>Click "Run" to start the development server</li>
+        <li>Copy the preview URL (looks like https://xxxxx.replit.dev)</li>
+        <li>Paste it below and click "Save URL"</li>
+        <li>From now on, just click "Launch App" when Replit is running!</li>
+      </ol>
+      
+      <input type="text" class="url-input" id="urlInput" placeholder="Paste your Replit dev URL here...">
+      <button class="save-btn" onclick="saveUrl()">Save URL</button>
+      <div class="status" id="status"></div>
     </div>
   </div>
 
   <script>
-    // Auto-redirect after 2 seconds (optional - remove if you prefer manual click)
-    // setTimeout(() => { window.location.href = document.getElementById('launchBtn').href; }, 2000);
+    // Load saved URL on page load
+    window.onload = function() {
+      const savedUrl = localStorage.getItem('audioDownloaderUrl');
+      if (savedUrl) {
+        document.getElementById('urlInput').value = savedUrl;
+        document.getElementById('status').textContent = 'URL saved! Click "Launch App" to open.';
+      }
+    };
+
+    function saveUrl() {
+      const url = document.getElementById('urlInput').value.trim();
+      if (url) {
+        localStorage.setItem('audioDownloaderUrl', url);
+        document.getElementById('status').textContent = 'URL saved successfully!';
+      } else {
+        document.getElementById('status').textContent = 'Please enter a valid URL.';
+        document.getElementById('status').style.color = '#f87171';
+      }
+    }
+
+    function launchApp() {
+      const savedUrl = localStorage.getItem('audioDownloaderUrl');
+      if (savedUrl) {
+        window.open(savedUrl, '_blank');
+      } else {
+        alert('Please save your Replit dev URL first.\n\n1. Open your Replit project\n2. Click Run to start the server\n3. Copy the preview URL\n4. Paste it in this page and click Save URL');
+      }
+    }
   </script>
 </body>
 </html>
