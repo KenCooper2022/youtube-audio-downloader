@@ -84,6 +84,20 @@ DOCUMENT LIST
     - Shared types and schemas
     - CSS variables reference
 
+07-DATABASE-DOCUMENTATION.txt
+  Purpose: Comprehensive PostgreSQL database documentation
+  Audience: Database administrators, backend developers, full-stack engineers
+  Contents:
+    - Database overview and technology stack
+    - Complete schema definition (SQL and Drizzle)
+    - All SQL operations with equivalent code
+    - Server and client code interfacing
+    - Type definitions and Zod schemas
+    - Migration and schema change procedures
+    - Error handling patterns
+    - Advanced query examples
+    - Security considerations
+
 ================================================================================
 READING ORDER RECOMMENDATIONS
 ================================================================================

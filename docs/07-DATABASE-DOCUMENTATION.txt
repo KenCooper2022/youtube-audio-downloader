@@ -1,0 +1,479 @@
+================================================================================
+                    DATABASE DOCUMENTATION
+                    SoundGrab Application
+================================================================================
+
+This document provides comprehensive documentation about the PostgreSQL database
+structure, SQL syntax, and how the application code interfaces with the database.
+
+================================================================================
+1. DATABASE OVERVIEW
+================================================================================
+
+SoundGrab uses PostgreSQL (via Replit's built-in Neon-backed database) to store
+song metadata for downloaded audio files. The database is accessed through
+Drizzle ORM, which provides type-safe SQL queries.
+
+Technology Stack:
+- Database: PostgreSQL 15+ (Neon-backed)
+- ORM: Drizzle ORM
+- Connection: pg (node-postgres)
+- Schema Definition: TypeScript with drizzle-orm/pg-core
+
+Connection Details:
+- Connection String: Available via DATABASE_URL environment variable
+- Additional env vars: PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE
+
+================================================================================
+2. DATABASE SCHEMA
+================================================================================
+
+TABLE: songs
+--------------------------------------------------------------------------------
+
+Purpose: Stores metadata for each downloaded song.
+
++---------------+------------------------+---------+---------------------------+
+| Column        | Type                   | Nullable| Description               |
++---------------+------------------------+---------+---------------------------+
+| id            | VARCHAR(36)            | NO      | Primary key (UUID)        |
+| video_id      | VARCHAR(32)            | NO      | YouTube video ID (UNIQUE) |
+| title         | TEXT                   | NO      | Original video title      |
+| artist        | TEXT                   | YES     | Extracted artist name     |
+| album         | TEXT                   | YES     | Album name (if detected)  |
+| genre         | TEXT                   | YES     | Music genre               |
+| thumbnail     | TEXT                   | NO      | YouTube thumbnail URL     |
+| file_path     | TEXT                   | YES     | Server file path          |
+| downloaded_at | TIMESTAMP WITH TZ      | NO      | Download timestamp        |
++---------------+------------------------+---------+---------------------------+
+
+Constraints:
+- PRIMARY KEY: id
+- UNIQUE: video_id (prevents duplicate downloads)
+- DEFAULT: downloaded_at defaults to NOW()
+
+SQL CREATE TABLE Statement:
+--------------------------------------------------------------------------------
+
+CREATE TABLE songs (
+    id VARCHAR(36) PRIMARY KEY,
+    video_id VARCHAR(32) NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    artist TEXT,
+    album TEXT,
+    genre TEXT,
+    thumbnail TEXT NOT NULL,
+    file_path TEXT,
+    downloaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+
+Drizzle Schema Definition (shared/schema.ts):
+--------------------------------------------------------------------------------
+
+import { pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+
+export const songs = pgTable("songs", {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    videoId: varchar("video_id", { length: 32 }).notNull().unique(),
+    title: text("title").notNull(),
+    artist: text("artist"),
+    album: text("album"),
+    genre: text("genre"),
+    thumbnail: text("thumbnail").notNull(),
+    filePath: text("file_path"),
+    downloadedAt: timestamp("downloaded_at", { withTimezone: true })
+        .defaultNow().notNull(),
+});
+
+================================================================================
+3. SQL OPERATIONS
+================================================================================
+
+This section documents all SQL operations performed by the application,
+including the Drizzle ORM code and equivalent raw SQL.
+
+--------------------------------------------------------------------------------
+3.1 SELECT ALL SONGS (Ordered by Download Date)
+--------------------------------------------------------------------------------
+
+Purpose: Retrieve all songs from the library, newest first.
+
+Drizzle Code:
+    const songs = await db
+        .select()
+        .from(songs)
+        .orderBy(desc(songs.downloadedAt));
+
+Equivalent SQL:
+    SELECT * FROM songs ORDER BY downloaded_at DESC;
+
+API Endpoint: GET /api/songs
+HTTP Response: Array of Song objects
+
+--------------------------------------------------------------------------------
+3.2 SELECT SONG BY ID
+--------------------------------------------------------------------------------
+
+Purpose: Retrieve a specific song by its primary key.
+
+Drizzle Code:
+    const [song] = await db
+        .select()
+        .from(songs)
+        .where(eq(songs.id, id));
+
+Equivalent SQL:
+    SELECT * FROM songs WHERE id = $1 LIMIT 1;
+
+API Endpoint: GET /api/songs/:id
+HTTP Response: Song object or 404
+
+--------------------------------------------------------------------------------
+3.3 SELECT SONG BY VIDEO ID
+--------------------------------------------------------------------------------
+
+Purpose: Check if a YouTube video has already been downloaded.
+
+Drizzle Code:
+    const [song] = await db
+        .select()
+        .from(songs)
+        .where(eq(songs.videoId, videoId));
+
+Equivalent SQL:
+    SELECT * FROM songs WHERE video_id = $1 LIMIT 1;
+
+API Endpoint: GET /api/songs/video/:videoId
+HTTP Response: Song object or 404
+
+--------------------------------------------------------------------------------
+3.4 INSERT SONG
+--------------------------------------------------------------------------------
+
+Purpose: Add a new song to the database after download.
+
+Drizzle Code:
+    const [created] = await db
+        .insert(songs)
+        .values({
+            id: "uuid-here",
+            videoId: "youtube-video-id",
+            title: "Song Title",
+            artist: "Artist Name",
+            album: "Album Name",
+            genre: "Pop",
+            thumbnail: "https://...",
+            filePath: "/downloads/Song_Title.mp3"
+        })
+        .returning();
+
+Equivalent SQL:
+    INSERT INTO songs (id, video_id, title, artist, album, genre, thumbnail, file_path)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    RETURNING *;
+
+API Endpoint: POST /api/songs
+HTTP Request Body:
+    {
+        "id": "uuid",
+        "videoId": "string",
+        "title": "string",
+        "artist": "string|null",
+        "album": "string|null",
+        "genre": "string|null",
+        "thumbnail": "string",
+        "filePath": "string|null"
+    }
+HTTP Response: Created Song object (201 Created)
+
+--------------------------------------------------------------------------------
+3.5 UPDATE SONG METADATA
+--------------------------------------------------------------------------------
+
+Purpose: Modify an existing song's metadata.
+
+Drizzle Code:
+    const [updated] = await db
+        .update(songs)
+        .set({
+            artist: "New Artist",
+            album: "New Album"
+        })
+        .where(eq(songs.id, id))
+        .returning();
+
+Equivalent SQL:
+    UPDATE songs SET artist = $1, album = $2 WHERE id = $3 RETURNING *;
+
+API Endpoint: PATCH /api/songs/:id
+HTTP Request Body: Partial Song object (only fields to update)
+HTTP Response: Updated Song object
+
+--------------------------------------------------------------------------------
+3.6 DELETE SONG
+--------------------------------------------------------------------------------
+
+Purpose: Remove a song from the database.
+
+Drizzle Code:
+    const result = await db
+        .delete(songs)
+        .where(eq(songs.id, id))
+        .returning();
+
+Equivalent SQL:
+    DELETE FROM songs WHERE id = $1;
+
+API Endpoint: DELETE /api/songs/:id
+HTTP Response: { "message": "Song deleted successfully" }
+
+Note: This operation does NOT delete the physical MP3 file from the server.
+
+================================================================================
+4. CODE INTERFACING
+================================================================================
+
+4.1 Server-Side Architecture
+--------------------------------------------------------------------------------
+
+File: server/db.ts
+Purpose: Database connection setup
+
+    import { drizzle } from "drizzle-orm/node-postgres";
+    import pg from "pg";
+    import * as schema from "@shared/schema";
+
+    const { Pool } = pg;
+    export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    export const db = drizzle(pool, { schema });
+
+File: server/storage.ts
+Purpose: Data access layer (implements IStorage interface)
+
+    export interface IStorage {
+        getSong(id: string): Promise<Song | undefined>;
+        getSongByVideoId(videoId: string): Promise<Song | undefined>;
+        getAllSongs(): Promise<Song[]>;
+        createSong(song: InsertSong): Promise<Song>;
+        updateSong(id: string, updates: Partial<InsertSong>): Promise<Song | undefined>;
+        deleteSong(id: string): Promise<boolean>;
+    }
+
+    export class DatabaseStorage implements IStorage {
+        // Implementation using Drizzle ORM
+    }
+
+File: server/routes.ts
+Purpose: REST API endpoints
+
+    - GET /api/songs -> storage.getAllSongs()
+    - GET /api/songs/:id -> storage.getSong(id)
+    - GET /api/songs/video/:videoId -> storage.getSongByVideoId(videoId)
+    - POST /api/songs -> storage.createSong(data)
+    - PATCH /api/songs/:id -> storage.updateSong(id, data)
+    - DELETE /api/songs/:id -> storage.deleteSong(id)
+
+4.2 Client-Side Architecture
+--------------------------------------------------------------------------------
+
+File: client/src/lib/db.ts
+Purpose: API client for database operations
+
+    export async function saveSong(song: SongMetadata): Promise<void> {
+        await fetch("/api/songs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(song),
+        });
+    }
+
+    export async function getAllSongs(): Promise<SongMetadata[]> {
+        const response = await fetch("/api/songs");
+        return response.json();
+    }
+
+    export async function deleteSong(id: string): Promise<void> {
+        await fetch(`/api/songs/${id}`, { method: "DELETE" });
+    }
+
+4.3 Data Flow Diagram
+--------------------------------------------------------------------------------
+
+    [Frontend React]
+           |
+           | HTTP Requests (fetch)
+           v
+    [Express Routes (server/routes.ts)]
+           |
+           | IStorage Interface
+           v
+    [DatabaseStorage (server/storage.ts)]
+           |
+           | Drizzle ORM Queries
+           v
+    [PostgreSQL Database]
+
+================================================================================
+5. TYPE DEFINITIONS
+================================================================================
+
+File: shared/schema.ts
+
+Song Table Type (inferred from Drizzle schema):
+    export type Song = {
+        id: string;
+        videoId: string;
+        title: string;
+        artist: string | null;
+        album: string | null;
+        genre: string | null;
+        thumbnail: string;
+        filePath: string | null;
+        downloadedAt: Date;
+    };
+
+Insert Schema (for validation):
+    export const insertSongSchema = createInsertSchema(songs).omit({
+        downloadedAt: true,  // Auto-generated
+    });
+
+    export type InsertSong = z.infer<typeof insertSongSchema>;
+
+API Response Type (SongMetadata - with ISO string date):
+    export type SongMetadata = {
+        id: string;
+        videoId: string;
+        title: string;
+        artist: string | null | undefined;
+        album: string | null | undefined;
+        genre: string | null | undefined;
+        thumbnail: string;
+        filePath: string | null | undefined;
+        downloadedAt: string;  // ISO date string
+    };
+
+================================================================================
+6. MIGRATION AND SCHEMA CHANGES
+================================================================================
+
+Drizzle Kit Commands:
+    npm run db:push        # Push schema changes to database
+    npm run db:push --force # Force push (use with caution)
+
+Configuration File: drizzle.config.ts
+
+    import { defineConfig } from "drizzle-kit";
+
+    export default defineConfig({
+        out: "./migrations",
+        schema: "./shared/schema.ts",
+        dialect: "postgresql",
+        dbCredentials: {
+            url: process.env.DATABASE_URL,
+        },
+    });
+
+Important Notes:
+- Never manually write SQL migrations
+- Use Drizzle Kit to manage schema changes
+- The schema is defined in TypeScript and synchronized via db:push
+
+================================================================================
+7. ERROR HANDLING
+================================================================================
+
+Unique Constraint Violation (duplicate video_id):
+- PostgreSQL Error Code: 23505
+- HTTP Response: 409 Conflict
+- Message: "Song already exists"
+
+Example Error Handler (server/routes.ts):
+    try {
+        const song = await storage.createSong(data);
+        res.status(201).json(song);
+    } catch (error: any) {
+        if (error.code === '23505') {
+            return res.status(409).json({ message: "Song already exists" });
+        }
+        res.status(500).json({ message: "Failed to create song" });
+    }
+
+================================================================================
+8. QUERY EXAMPLES
+================================================================================
+
+8.1 Find Songs by Artist
+--------------------------------------------------------------------------------
+
+SQL:
+    SELECT * FROM songs WHERE artist = 'Artist Name' ORDER BY downloaded_at DESC;
+
+Drizzle:
+    const artistSongs = await db
+        .select()
+        .from(songs)
+        .where(eq(songs.artist, "Artist Name"))
+        .orderBy(desc(songs.downloadedAt));
+
+8.2 Count Total Songs
+--------------------------------------------------------------------------------
+
+SQL:
+    SELECT COUNT(*) FROM songs;
+
+Drizzle:
+    const [{ count }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(songs);
+
+8.3 Search Songs by Title (Case-Insensitive)
+--------------------------------------------------------------------------------
+
+SQL:
+    SELECT * FROM songs WHERE LOWER(title) LIKE LOWER('%search term%');
+
+Drizzle:
+    import { ilike } from "drizzle-orm";
+    
+    const results = await db
+        .select()
+        .from(songs)
+        .where(ilike(songs.title, `%${searchTerm}%`));
+
+8.4 Get Songs Downloaded in Last 24 Hours
+--------------------------------------------------------------------------------
+
+SQL:
+    SELECT * FROM songs WHERE downloaded_at > NOW() - INTERVAL '24 hours';
+
+Drizzle:
+    import { gt, sql } from "drizzle-orm";
+    
+    const recentSongs = await db
+        .select()
+        .from(songs)
+        .where(gt(songs.downloadedAt, sql`NOW() - INTERVAL '24 hours'`));
+
+================================================================================
+9. SECURITY CONSIDERATIONS
+================================================================================
+
+1. SQL Injection Prevention:
+   - All queries use parameterized statements via Drizzle ORM
+   - User input is never concatenated into SQL strings
+
+2. Input Validation:
+   - Request bodies are validated using Zod schemas
+   - Invalid data is rejected before reaching the database
+
+3. File Path Security:
+   - File paths are validated to prevent directory traversal
+   - Only files within the downloads directory are accessible
+
+4. Connection Security:
+   - Database credentials are stored in environment variables
+   - Connection uses SSL when available
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
