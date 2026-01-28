@@ -143,3 +143,31 @@ export const metadataResultSchema = z.object({
 });
 
 export type MetadataResult = z.infer<typeof metadataResultSchema>;
+
+// Album track schema
+export const albumTrackSchema = z.object({
+  trackNumber: z.number(),
+  trackName: z.string(),
+  artistName: z.string(),
+  trackTimeMillis: z.number().optional(),
+  youtubeVideoId: z.string().optional(),
+  youtubeTitle: z.string().optional(),
+  youtubeThumbnail: z.string().optional(),
+  available: z.boolean(),
+});
+
+export type AlbumTrack = z.infer<typeof albumTrackSchema>;
+
+// Album schema
+export const albumSchema = z.object({
+  collectionId: z.number(),
+  collectionName: z.string(),
+  artistName: z.string(),
+  artworkUrl: z.string(),
+  trackCount: z.number(),
+  releaseDate: z.string(),
+  genre: z.string().optional(),
+  tracks: z.array(albumTrackSchema),
+});
+
+export type Album = z.infer<typeof albumSchema>;

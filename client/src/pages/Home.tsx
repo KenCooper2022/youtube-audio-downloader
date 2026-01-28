@@ -1,14 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
-import { Music, Headphones } from "lucide-react";
+import { Music, Headphones, Disc } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SearchBar } from "@/components/SearchBar";
 import { SearchResults } from "@/components/SearchResults";
 import { LoadingBar } from "@/components/LoadingBar";
 import { Library } from "@/components/Library";
+import { AlbumSearch } from "@/components/AlbumSearch";
+import { AlbumView } from "@/components/AlbumView";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { saveSong, getSongByVideoId, initDB } from "@/lib/db";
-import type { YouTubeVideo, DownloadProgress, SongMetadata } from "@shared/schema";
+import type { YouTubeVideo, DownloadProgress, SongMetadata, Album, AlbumTrack } from "@shared/schema";
 
 export default function Home() {
   const [searchResults, setSearchResults] = useState<YouTubeVideo[]>([]);
@@ -17,6 +20,8 @@ export default function Home() {
   const [downloadedVideos, setDownloadedVideos] = useState<Set<string>>(new Set());
   const [libraryRefresh, setLibraryRefresh] = useState(0);
   const [activeTab, setActiveTab] = useState("search");
+  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+  const [isLoadingAlbum, setIsLoadingAlbum] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -196,6 +201,69 @@ export default function Home() {
     }
   }, [toast]);
 
+  const handleSelectAlbum = useCallback(async (collectionId: number) => {
+    setIsLoadingAlbum(true);
+    try {
+      const response = await fetch(`/api/albums/${collectionId}`);
+      if (!response.ok) {
+        throw new Error("Failed to load album");
+      }
+      const albumData = await response.json();
+      setSelectedAlbum(albumData);
+    } catch (error) {
+      console.error("Album load error:", error);
+      toast({
+        title: "Failed to load album",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingAlbum(false);
+    }
+  }, [toast]);
+
+  const handleDownloadTrack = useCallback(async (track: AlbumTrack) => {
+    if (!track.youtubeVideoId || !track.youtubeTitle || !track.youtubeThumbnail) {
+      toast({
+        title: "Track not available",
+        description: "This track is not available on YouTube.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const video: YouTubeVideo = {
+      videoId: track.youtubeVideoId,
+      title: track.youtubeTitle,
+      thumbnail: track.youtubeThumbnail,
+      channelTitle: track.artistName,
+      publishedAt: "",
+    };
+
+    await handleDownload(video);
+  }, [handleDownload, toast]);
+
+  const handleDownloadAllTracks = useCallback(async () => {
+    if (!selectedAlbum) return;
+    
+    const availableTracks = selectedAlbum.tracks.filter(t => 
+      t.available && t.youtubeVideoId && !downloadedVideos.has(t.youtubeVideoId)
+    );
+
+    for (const track of availableTracks) {
+      await handleDownloadTrack(track);
+    }
+
+    toast({
+      title: "Album download complete",
+      description: `Downloaded ${availableTracks.length} tracks from "${selectedAlbum.collectionName}"`,
+    });
+  }, [selectedAlbum, downloadedVideos, handleDownloadTrack, toast]);
+
+  const handleBackToAlbumSearch = useCallback(() => {
+    setSelectedAlbum(null);
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
       <div className="fixed top-4 right-4 z-50">
@@ -204,10 +272,14 @@ export default function Home() {
 
       <main className="container mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-sm mx-auto grid-cols-2 mb-6">
+          <TabsList className="grid w-full max-w-md mx-auto grid-cols-3 mb-6">
             <TabsTrigger value="search" className="gap-2 text-xs uppercase tracking-wider" data-testid="tab-search">
               <Music className="h-3.5 w-3.5" />
-              Search
+              Songs
+            </TabsTrigger>
+            <TabsTrigger value="albums" className="gap-2 text-xs uppercase tracking-wider" data-testid="tab-albums">
+              <Disc className="h-3.5 w-3.5" />
+              Albums
             </TabsTrigger>
             <TabsTrigger value="library" className="gap-2 text-xs uppercase tracking-wider" data-testid="tab-library">
               <Headphones className="h-3.5 w-3.5" />
@@ -227,6 +299,34 @@ export default function Home() {
               downloadProgress={downloadProgress}
               downloadedVideos={downloadedVideos}
             />
+          </TabsContent>
+
+          <TabsContent value="albums" className="mt-0">
+            {selectedAlbum ? (
+              <div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleBackToAlbumSearch}
+                  className="mb-4 gap-2 text-xs uppercase tracking-wider"
+                  data-testid="button-back-to-search"
+                >
+                  Back to Search
+                </Button>
+                <AlbumView
+                  album={selectedAlbum}
+                  onDownloadTrack={handleDownloadTrack}
+                  onDownloadAll={handleDownloadAllTracks}
+                  downloadProgress={downloadProgress}
+                  downloadedVideos={downloadedVideos}
+                />
+              </div>
+            ) : (
+              <AlbumSearch
+                onSelectAlbum={handleSelectAlbum}
+                isLoading={isLoadingAlbum}
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="library" className="mt-0">

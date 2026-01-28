@@ -233,6 +233,84 @@ async function searchITunesAlbumArt(artist: string, song: string): Promise<strin
   }
 }
 
+interface ITunesAlbumResult {
+  collectionId: number;
+  collectionName: string;
+  artistName: string;
+  artworkUrl100: string;
+  trackCount: number;
+  releaseDate: string;
+  primaryGenreName?: string;
+}
+
+interface ITunesTrackResult {
+  wrapperType: string;
+  trackNumber: number;
+  trackName: string;
+  artistName: string;
+  trackTimeMillis?: number;
+}
+
+async function searchITunesAlbums(query: string): Promise<ITunesAlbumResult[]> {
+  try {
+    const response = await fetch(
+      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=album&limit=10`
+    );
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.results || [];
+  } catch (error) {
+    console.error("iTunes album search error:", error);
+    return [];
+  }
+}
+
+async function getAlbumTracks(collectionId: number): Promise<ITunesTrackResult[]> {
+  try {
+    const response = await fetch(
+      `https://itunes.apple.com/lookup?id=${collectionId}&entity=song`
+    );
+    if (!response.ok) return [];
+    const data = await response.json();
+    return (data.results || []).filter((r: any) => r.wrapperType === 'track');
+  } catch (error) {
+    console.error("iTunes track lookup error:", error);
+    return [];
+  }
+}
+
+async function findYouTubeForTrack(artistName: string, trackName: string): Promise<{videoId: string; title: string; thumbnail: string} | null> {
+  try {
+    if (!YOUTUBE_API_KEY) return null;
+    const query = `${artistName} ${trackName} official audio`;
+    const params = new URLSearchParams({
+      part: "snippet",
+      q: query,
+      type: "video",
+      videoCategoryId: "10",
+      maxResults: "1",
+      key: YOUTUBE_API_KEY,
+    });
+    
+    const response = await fetch(`https://www.googleapis.com/youtube/v3/search?${params.toString()}`);
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    if (data.items && data.items.length > 0) {
+      const item = data.items[0];
+      return {
+        videoId: item.id.videoId,
+        title: item.snippet.title,
+        thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.medium?.url || '',
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error("YouTube track search error:", error);
+    return null;
+  }
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -261,6 +339,87 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Image download error:", error);
       res.status(500).json({ message: "Failed to download image" });
+    }
+  });
+
+  app.get("/api/albums/search", async (req: Request, res: Response) => {
+    try {
+      const query = req.query.q as string;
+      if (!query) {
+        return res.status(400).json({ message: "Search query is required" });
+      }
+      
+      const albums = await searchITunesAlbums(query);
+      const results = albums.map(album => ({
+        collectionId: album.collectionId,
+        collectionName: album.collectionName,
+        artistName: album.artistName,
+        artworkUrl: album.artworkUrl100?.replace('100x100bb', '600x600bb') || '',
+        trackCount: album.trackCount,
+        releaseDate: album.releaseDate,
+        genre: album.primaryGenreName,
+      }));
+      
+      res.json({ albums: results });
+    } catch (error) {
+      console.error("Album search error:", error);
+      res.status(500).json({ message: "Album search failed" });
+    }
+  });
+
+  app.get("/api/albums/:collectionId", async (req: Request, res: Response) => {
+    try {
+      const collectionId = parseInt(req.params.collectionId);
+      if (isNaN(collectionId)) {
+        return res.status(400).json({ message: "Invalid collection ID" });
+      }
+
+      const response = await fetch(
+        `https://itunes.apple.com/lookup?id=${collectionId}&entity=song`
+      );
+      if (!response.ok) {
+        return res.status(404).json({ message: "Album not found" });
+      }
+      
+      const data = await response.json();
+      const results = data.results || [];
+      
+      if (results.length === 0) {
+        return res.status(404).json({ message: "Album not found" });
+      }
+      
+      const albumInfo = results[0];
+      const tracks = results.filter((r: any) => r.wrapperType === 'track');
+      
+      const tracksWithYouTube = await Promise.all(
+        tracks.map(async (track: ITunesTrackResult) => {
+          const ytResult = await findYouTubeForTrack(track.artistName, track.trackName);
+          return {
+            trackNumber: track.trackNumber,
+            trackName: track.trackName,
+            artistName: track.artistName,
+            trackTimeMillis: track.trackTimeMillis,
+            youtubeVideoId: ytResult?.videoId || undefined,
+            youtubeTitle: ytResult?.title || undefined,
+            youtubeThumbnail: ytResult?.thumbnail || undefined,
+            available: !!ytResult,
+          };
+        })
+      );
+      
+      res.json({
+        collectionId: albumInfo.collectionId,
+        collectionName: albumInfo.collectionName,
+        artistName: albumInfo.artistName,
+        artworkUrl: albumInfo.artworkUrl100?.replace('100x100bb', '600x600bb') || '',
+        trackCount: albumInfo.trackCount,
+        releaseDate: albumInfo.releaseDate,
+        genre: albumInfo.primaryGenreName,
+        tracks: tracksWithYouTube,
+      });
+    } catch (error) {
+      console.error("Album lookup error:", error);
+      res.status(500).json({ message: "Album lookup failed" });
     }
   });
 

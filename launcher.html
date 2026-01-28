@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Audio Downloader</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      text-align: center;
+      max-width: 400px;
+    }
+    .icon {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      box-shadow: 0 10px 40px rgba(233, 69, 96, 0.3);
+    }
+    .icon svg {
+      width: 40px;
+      height: 40px;
+      fill: white;
+    }
+    h1 {
+      color: white;
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    p {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 14px;
+      margin-bottom: 32px;
+    }
+    .button {
+      display: inline-block;
+      background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
+      color: white;
+      text-decoration: none;
+      padding: 16px 48px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(233, 69, 96, 0.4);
+    }
+    .button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(233, 69, 96, 0.5);
+    }
+    .button:active {
+      transform: translateY(0);
+    }
+    .note {
+      margin-top: 24px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .note p {
+      font-size: 12px;
+      margin-bottom: 0;
+      color: rgba(255, 255, 255, 0.5);
+    }
+    .note code {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">
+      <svg viewBox="0 0 24 24">
+        <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+      </svg>
+    </div>
+    <h1>YouTube Audio Downloader</h1>
+    <p>Search, download, and organize your music collection</p>
+    
+    <a href="https://YOUR-APP-NAME.replit.app" class="button" id="launchBtn">
+      Launch App
+    </a>
+    
+    <div class="note">
+      <p>Replace <code>YOUR-APP-NAME</code> in this file with your actual Replit app URL after publishing.</p>
+    </div>
+  </div>
+
+  <script>
+    // Auto-redirect after 2 seconds (optional - remove if you prefer manual click)
+    // setTimeout(() => { window.location.href = document.getElementById('launchBtn').href; }, 2000);
+  </script>
+</body>
+</html>
