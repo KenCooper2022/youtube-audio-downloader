@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { buildApiUrl } from "@/lib/config";
 
 interface AlbumResult {
   collectionId: number;
@@ -32,7 +33,7 @@ export function AlbumSearch({ onSelectAlbum, isLoading }: AlbumSearchProps) {
     setIsSearching(true);
     setHasSearched(true);
     try {
-      const response = await fetch(`/api/albums/search?q=${encodeURIComponent(query)}`);
+      const response = await fetch(buildApiUrl(`/api/albums/search?q=${encodeURIComponent(query)}`));
       if (response.ok) {
         const data = await response.json();
         setResults(data.albums || []);

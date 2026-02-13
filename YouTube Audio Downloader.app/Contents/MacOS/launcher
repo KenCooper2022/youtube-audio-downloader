@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# YouTube Audio Downloader - macOS App Launcher
+# This script finds the project folder (next to the .app) and runs the server.
+
+APP_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+show_alert() {
+  osascript -e "display dialog \"$1\" with title \"YouTube Audio Downloader\" buttons {\"OK\"} default button \"OK\""
+}
+
+show_progress() {
+  osascript -e "display notification \"$1\" with title \"YouTube Audio Downloader\""
+}
+
+# --- Install Homebrew if missing ---
+if ! command -v brew &> /dev/null; then
+  osascript -e 'display dialog "Homebrew is needed to install dependencies. Click OK to install it (this only happens once)." with title "YouTube Audio Downloader" buttons {"OK", "Cancel"} default button "OK"'
+  if [ $? -ne 0 ]; then
+    exit 0
+  fi
+  open -a Terminal.app "$(dirname "$0")/install-deps"
+  exit 0
+fi
+
+# --- Install Node.js if missing ---
+if ! command -v node &> /dev/null; then
+  show_progress "Installing Node.js..."
+  brew install node 2>/dev/null
+  if ! command -v node &> /dev/null; then
+    show_alert "Could not install Node.js. Please install it from https://nodejs.org and try again."
+    exit 1
+  fi
+fi
+
+# --- Install yt-dlp if missing ---
+if ! command -v yt-dlp &> /dev/null; then
+  show_progress "Installing yt-dlp..."
+  brew install yt-dlp 2>/dev/null
+fi
+
+# --- Install FFmpeg if missing ---
+if ! command -v ffmpeg &> /dev/null; then
+  show_progress "Installing FFmpeg..."
+  brew install ffmpeg 2>/dev/null
+fi
+
+# --- Install npm packages if needed ---
+if [ ! -d "$APP_DIR/node_modules" ]; then
+  show_progress "Installing packages (first run)..."
+  cd "$APP_DIR" && npm install
+fi
+
+# --- Push database schema if DATABASE_URL is set ---
+if [ -n "$DATABASE_URL" ]; then
+  cd "$APP_DIR" && npm run db:push 2>/dev/null
+fi
+
+# --- Start server and open browser ---
+cd "$APP_DIR"
+
+sleep 3 && open "http://localhost:5000" &
+
+exec npm run dev

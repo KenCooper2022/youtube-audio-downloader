@@ -1,0 +1,67 @@
+appId: com.youtubeaudiodownloader.app
+productName: YouTube Audio Downloader
+directories:
+  output: electron-dist
+  buildResources: electron/resources
+
+files:
+  - dist/**/*
+  - electron/**/*
+  - downloads/**/*
+  - "!node_modules/**/*"
+  - node_modules/express/**/*
+  - node_modules/drizzle-orm/**/*
+  - node_modules/pg/**/*
+  - node_modules/node-id3/**/*
+  - node_modules/zod/**/*
+  - node_modules/ws/**/*
+
+extraResources:
+  - from: dist/index.cjs
+    to: server/index.cjs
+  - from: dist/client
+    to: server/client
+  - from: downloads
+    to: downloads
+    filter:
+      - "**/*"
+
+mac:
+  category: public.app-category.music
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: electron/resources/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: electron/resources/icon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Audio
+  icon: electron/resources/icons

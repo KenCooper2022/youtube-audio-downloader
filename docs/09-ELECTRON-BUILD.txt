@@ -1,0 +1,145 @@
+================================================================================
+                    ELECTRON DESKTOP APP BUILD GUIDE
+================================================================================
+
+This document explains how to build the YouTube Audio Downloader as a native
+desktop application for macOS, Windows, and Linux.
+
+================================================================================
+PREREQUISITES
+================================================================================
+
+Before building, ensure you have:
+
+1. Node.js v18+ installed
+2. yt-dlp installed on the target system
+3. FFmpeg installed on the target system
+4. PostgreSQL database (can use local or remote)
+
+For macOS builds specifically:
+- Must build ON a Mac (cross-compilation not supported for signing)
+- Xcode Command Line Tools installed
+
+For Windows builds:
+- Can build on Windows or Linux (with Wine)
+
+================================================================================
+BUILD STEPS
+================================================================================
+
+1. INSTALL DEPENDENCIES
+------------------------
+npm install
+
+2. BUILD THE WEB APPLICATION
+----------------------------
+npm run build
+
+This creates the production bundle in the dist/ directory.
+
+3. BUILD THE DESKTOP APP
+------------------------
+
+For macOS (.dmg):
+-----------------
+./script/build-electron.sh mac
+
+This creates:
+- electron-dist/YouTube Audio Downloader-{version}-arm64.dmg (Apple Silicon)
+- electron-dist/YouTube Audio Downloader-{version}-x64.dmg (Intel)
+
+For Windows (.exe):
+-------------------
+./script/build-electron.sh win
+
+This creates:
+- electron-dist/YouTube Audio Downloader Setup {version}.exe
+
+For Linux (.AppImage):
+----------------------
+./script/build-electron.sh linux
+
+This creates:
+- electron-dist/YouTube Audio Downloader-{version}.AppImage
+
+================================================================================
+DEVELOPMENT MODE
+================================================================================
+
+To test the Electron app during development:
+
+NODE_ENV=development npx electron electron/main.js
+
+This starts the TypeScript dev server and opens the Electron window.
+
+================================================================================
+CONFIGURATION
+================================================================================
+
+The Electron build is configured in:
+- electron-builder.yml - Build configuration for all platforms
+- electron/main.js - Main Electron process
+
+App Icon:
+---------
+Place your app icons in electron/resources/:
+- icon.icns - macOS (1024x1024)
+- icon.ico - Windows (256x256)
+- icons/ directory with PNG files for Linux
+
+================================================================================
+DATABASE CONFIGURATION
+================================================================================
+
+The desktop app needs a PostgreSQL database. Options:
+
+1. Local PostgreSQL:
+   Set DATABASE_URL environment variable before running the app
+   
+2. Remote Database:
+   Configure DATABASE_URL in the app's environment
+
+The app will look for DATABASE_URL in the system environment.
+
+================================================================================
+DEPENDENCIES BUNDLED
+================================================================================
+
+The following system tools must be installed on the user's system:
+- yt-dlp (for downloading YouTube audio)
+- FFmpeg (for audio conversion)
+
+These are NOT bundled with the app and must be installed separately.
+
+On macOS:
+  brew install yt-dlp ffmpeg
+
+On Windows:
+  choco install yt-dlp ffmpeg
+  (or download from official websites)
+
+On Linux:
+  sudo apt install yt-dlp ffmpeg
+  (or use your distribution's package manager)
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+1. "Cannot find yt-dlp"
+   - Ensure yt-dlp is installed and in your PATH
+   - On macOS: brew install yt-dlp
+
+2. "Database connection failed"
+   - Set DATABASE_URL environment variable
+   - Ensure PostgreSQL is running
+
+3. Build fails on macOS
+   - Ensure you're building ON a Mac
+   - Install Xcode Command Line Tools: xcode-select --install
+
+4. App doesn't start
+   - Check Console.app (macOS) or Event Viewer (Windows) for errors
+   - Verify DATABASE_URL is set correctly
+
+================================================================================

@@ -1,9 +1,28 @@
 import { useState, useEffect } from "react";
-import { Download, Play, Clock, User, ImageDown } from "lucide-react";
+import { Download, Play, Clock, User, ImageDown, Disc, Music, Calendar, Hash, Timer, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { buildApiUrl } from "@/lib/config";
 import type { YouTubeVideo, DownloadProgress } from "@shared/schema";
+
+interface SongMetadata {
+  found: boolean;
+  trackName: string | null;
+  artistName: string | null;
+  albumName: string | null;
+  albumArt: string | null;
+  releaseDate: string | null;
+  genre: string | null;
+  trackNumber: number | null;
+  trackCount: number | null;
+  discNumber: number | null;
+  discCount: number | null;
+  durationMs: number | null;
+  isExplicit: boolean;
+  collectionType: string | null;
+  previewUrl: string | null;
+}
 
 interface SearchResultsProps {
   results: YouTubeVideo[];
@@ -35,8 +54,8 @@ export function SearchResults({
     return downloadProgress.get(videoId);
   };
 
-  const [albumArt, setAlbumArt] = useState<string | null>(null);
-  const [isLoadingArt, setIsLoadingArt] = useState(false);
+  const [songMetadata, setSongMetadata] = useState<SongMetadata | null>(null);
+  const [isLoadingMetadata, setIsLoadingMetadata] = useState(false);
 
   const getHighResThumbnail = (videoId: string) => {
     return `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
@@ -68,89 +87,229 @@ export function SearchResults({
     return title;
   };
 
+  const formatDuration = (ms: number) => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  };
+
+  const formatReleaseDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", { 
+      year: "numeric", 
+      month: "long", 
+      day: "numeric" 
+    });
+  };
+
   const featuredResult = results[0];
-  const artist = parseArtistFromTitle(featuredResult.title);
-  const songName = parseSongFromTitle(featuredResult.title);
+  const parsedArtist = parseArtistFromTitle(featuredResult.title);
+  const parsedSongName = parseSongFromTitle(featuredResult.title);
 
   useEffect(() => {
-    const fetchAlbumArt = async () => {
-      if (!artist && !songName) return;
+    const fetchSongMetadata = async () => {
+      if (!parsedArtist && !parsedSongName) return;
       
-      setIsLoadingArt(true);
+      setIsLoadingMetadata(true);
       try {
         const params = new URLSearchParams();
-        if (artist) params.append("artist", artist);
-        if (songName) params.append("song", songName);
+        if (parsedArtist) params.append("artist", parsedArtist);
+        if (parsedSongName) params.append("song", parsedSongName);
         
-        const response = await fetch(`/api/album-art?${params.toString()}`);
+        const response = await fetch(buildApiUrl(`/api/song-metadata?${params.toString()}`));
         const data = await response.json();
-        
-        if (data.albumArt) {
-          setAlbumArt(data.albumArt);
-        } else {
-          setAlbumArt(null);
-        }
+        setSongMetadata(data);
       } catch (error) {
-        console.error("Failed to fetch album art:", error);
-        setAlbumArt(null);
+        console.error("Failed to fetch song metadata:", error);
+        setSongMetadata(null);
       } finally {
-        setIsLoadingArt(false);
+        setIsLoadingMetadata(false);
       }
     };
 
-    setAlbumArt(null);
-    fetchAlbumArt();
-  }, [featuredResult.videoId, artist, songName]);
+    setSongMetadata(null);
+    fetchSongMetadata();
+  }, [featuredResult.videoId, parsedArtist, parsedSongName]);
 
-  const displayArt = albumArt || getHighResThumbnail(featuredResult.videoId);
+  const displayArt = songMetadata?.albumArt || getHighResThumbnail(featuredResult.videoId);
+  const displayArtist = songMetadata?.artistName || parsedArtist;
+  const displaySongName = songMetadata?.trackName || parsedSongName;
+  const isSingle = songMetadata?.found && songMetadata?.trackCount === 1;
 
   return (
     <div className="w-full max-w-3xl mx-auto mt-8">
-      {/* Featured Album Art */}
-      <div className="flex flex-col items-center mb-8">
-        <div className="relative w-48 h-48 rounded-lg overflow-hidden shadow-lg border border-border bg-muted">
-          {isLoadingArt ? (
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="w-8 h-8 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+      {/* Song Overview Panel */}
+      <Card className="p-6 mb-8 border border-border" data-testid="card-song-overview">
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Album Art */}
+          <div className="flex-shrink-0">
+            <div className="relative w-40 h-40 md:w-48 md:h-48 rounded-lg overflow-hidden shadow-lg border border-border bg-muted mx-auto md:mx-0">
+              {isLoadingMetadata ? (
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className="w-8 h-8 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <img
+                  src={displayArt}
+                  alt="Album Art"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = featuredResult.thumbnail;
+                  }}
+                  data-testid="img-album-cover"
+                />
+              )}
             </div>
-          ) : (
-            <img
-              src={displayArt}
-              alt="Album Art"
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = featuredResult.thumbnail;
-              }}
-              data-testid="img-album-cover"
-            />
-          )}
+            <div className="flex justify-center mt-3">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-xs uppercase tracking-wider"
+                onClick={() => {
+                  const filename = `${displayArtist ? displayArtist + " - " : ""}${displaySongName || "album-art"}.jpg`;
+                  const imageUrl = displayArt;
+                  window.open(`/api/download-image?url=${encodeURIComponent(imageUrl)}&filename=${encodeURIComponent(filename)}`, '_blank');
+                }}
+                disabled={isLoadingMetadata}
+                data-testid="button-download-art"
+              >
+                <ImageDown className="h-3 w-3" />
+                Save Cover
+              </Button>
+            </div>
+          </div>
+
+          {/* Metadata Info */}
+          <div className="flex-1 min-w-0">
+            {isLoadingMetadata ? (
+              <div className="space-y-3 animate-pulse">
+                <div className="h-6 bg-muted rounded w-3/4" />
+                <div className="h-4 bg-muted rounded w-1/2" />
+                <div className="h-4 bg-muted rounded w-2/3" />
+              </div>
+            ) : (
+              <>
+                {/* Track Name */}
+                <h2 className="text-xl font-semibold text-foreground mb-1" data-testid="text-song-title">
+                  {displaySongName}
+                </h2>
+                
+                {/* Artist */}
+                {displayArtist && (
+                  <p className="text-base text-muted-foreground mb-4" data-testid="text-artist-name">
+                    {displayArtist}
+                  </p>
+                )}
+
+                {/* Metadata Grid */}
+                {songMetadata?.found ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                    {/* Album Info */}
+                    {songMetadata.albumName && (
+                      <div className="flex items-start gap-2">
+                        <Disc className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Album</p>
+                          <p className="text-sm text-foreground" data-testid="text-album-name">{songMetadata.albumName}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Release Type (Single vs Album Track) */}
+                    <div className="flex items-start gap-2">
+                      <Music className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Type</p>
+                        <div className="flex items-center gap-2">
+                          <Badge 
+                            variant={isSingle ? "secondary" : "outline"} 
+                            className="text-xs"
+                            data-testid="badge-track-type"
+                          >
+                            {isSingle ? "Single" : "Album Track"}
+                          </Badge>
+                          {songMetadata.trackNumber && songMetadata.trackCount && !isSingle && (
+                            <span className="text-xs text-muted-foreground font-mono">
+                              Track {songMetadata.trackNumber} of {songMetadata.trackCount}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Genre */}
+                    {songMetadata.genre && (
+                      <div className="flex items-start gap-2">
+                        <Hash className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Genre</p>
+                          <p className="text-sm text-foreground" data-testid="text-genre">{songMetadata.genre}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Duration */}
+                    {songMetadata.durationMs && (
+                      <div className="flex items-start gap-2">
+                        <Timer className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Duration</p>
+                          <p className="text-sm text-foreground font-mono" data-testid="text-duration">
+                            {formatDuration(songMetadata.durationMs)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Release Date */}
+                    {songMetadata.releaseDate && (
+                      <div className="flex items-start gap-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Released</p>
+                          <p className="text-sm text-foreground" data-testid="text-release-date">
+                            {formatReleaseDate(songMetadata.releaseDate)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Explicit */}
+                    {songMetadata.isExplicit && (
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Content</p>
+                          <Badge variant="destructive" className="text-xs" data-testid="badge-explicit">
+                            Explicit
+                          </Badge>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Disc Info (if multi-disc album) */}
+                    {songMetadata.discCount && songMetadata.discCount > 1 && (
+                      <div className="flex items-start gap-2">
+                        <Disc className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Disc</p>
+                          <p className="text-sm text-foreground font-mono">
+                            {songMetadata.discNumber} of {songMetadata.discCount}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-4 text-sm text-muted-foreground italic">
+                    Additional metadata not available for this track.
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
-        <div className="text-center mt-4">
-          <h2 className="text-lg font-semibold text-foreground" data-testid="text-song-title">
-            {songName}
-          </h2>
-          {artist && (
-            <p className="text-sm text-muted-foreground mt-1" data-testid="text-artist-name">
-              {artist}
-            </p>
-          )}
-          <Button
-            size="sm"
-            variant="outline"
-            className="mt-3 gap-1.5 text-xs uppercase tracking-wider"
-            onClick={() => {
-              const filename = `${artist ? artist + " - " : ""}${songName || "album-art"}.jpg`;
-              const imageUrl = displayArt;
-              window.open(`/api/download-image?url=${encodeURIComponent(imageUrl)}&filename=${encodeURIComponent(filename)}`, '_blank');
-            }}
-            disabled={isLoadingArt}
-            data-testid="button-download-art"
-          >
-            <ImageDown className="h-3 w-3" />
-            Save Cover
-          </Button>
-        </div>
-      </div>
+      </Card>
 
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-widest">

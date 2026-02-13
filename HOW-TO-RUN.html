@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How to Run — YouTube Audio Downloader</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #fafafa; color: #1a1a1a; line-height: 1.6; padding: 2rem; max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem; }
+  .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
+  .section { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; margin-bottom: 0.75rem; overflow: hidden; }
+  .section-header { display: flex; align-items: center; gap: 0.75rem; padding: 0.875rem 1rem; cursor: pointer; user-select: none; }
+  .section-header:hover { background: #f5f5f5; }
+  .section-title { font-weight: 500; flex: 1; }
+  .badge { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.15rem 0.5rem; border-radius: 9999px; font-weight: 500; }
+  .badge-blue { background: #dbeafe; color: #1d4ed8; }
+  .badge-gray { background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb; }
+  .arrow { color: #999; font-size: 0.75rem; transition: transform 0.2s; }
+  .arrow.open { transform: rotate(90deg); }
+  .section-body { display: none; padding: 0 1rem 1rem; border-top: 1px solid #f0f0f0; }
+  .section-body.open { display: block; }
+  .section-body > *:first-child { margin-top: 1rem; }
+  ol, ul { padding-left: 1.25rem; }
+  li { margin-bottom: 0.4rem; font-size: 0.9rem; }
+  code { background: #f3f4f6; padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 0.8rem; }
+  .code-block { display: flex; align-items: center; background: #f3f4f6; border-radius: 6px; padding: 0.5rem 0.75rem; margin: 0.5rem 0; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 0.8rem; }
+  .code-block code { background: none; padding: 0; flex: 1; }
+  .copy-btn { background: none; border: 1px solid #d1d5db; border-radius: 4px; padding: 0.2rem 0.5rem; font-size: 0.7rem; cursor: pointer; color: #666; }
+  .copy-btn:hover { background: #e5e7eb; }
+  .note { background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 0.75rem; font-size: 0.8rem; margin-top: 0.75rem; }
+  .note-blue { background: #eff6ff; border-color: #bfdbfe; }
+  .note-green { background: #f0fdf4; border-color: #bbf7d0; }
+  .divider { border-top: 1px solid #f0f0f0; margin: 0.75rem 0; padding-top: 0.75rem; }
+  .platform-tag { display: inline-block; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.1rem 0.4rem; border-radius: 4px; border: 1px solid #e5e7eb; color: #6b7280; min-width: 3.5rem; text-align: center; margin-right: 0.25rem; }
+  a { color: #2563eb; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .icon { width: 1.25rem; height: 1.25rem; display: inline-flex; align-items: center; justify-content: center; color: #888; font-size: 1rem; }
+  p { font-size: 0.9rem; margin-bottom: 0.5rem; }
+  strong { font-weight: 600; }
+  .footer { text-align: center; color: #999; font-size: 0.75rem; margin-top: 2rem; padding-bottom: 2rem; }
+  .file-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; font-size: 0.85rem; }
+  .file-icon { color: #999; }
+  .file-name { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 0.8rem; }
+  .file-desc { color: #888; font-size: 0.8rem; }
+  .step-number { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #2563eb; color: #fff; font-size: 0.7rem; font-weight: 600; margin-right: 0.5rem; flex-shrink: 0; }
+  .big-step { display: flex; align-items: flex-start; gap: 0; margin-bottom: 0.75rem; font-size: 0.9rem; }
+  .big-step p { margin: 0; }
+</style>
+</head>
+<body>
+
+<h1>YouTube Audio Downloader</h1>
+<p class="subtitle">Pick your platform below to get started. No coding experience needed.</p>
+
+<div class="section" id="macos">
+  <div class="section-header" onclick="toggle('macos')">
+    <span class="icon">🍎</span>
+    <span class="section-title">macOS</span>
+    <span class="badge badge-blue">Recommended</span>
+    <span class="arrow open" id="arrow-macos">▶</span>
+  </div>
+  <div class="section-body open" id="body-macos">
+    <p><strong>First time (2 steps):</strong></p>
+
+    <div class="big-step">
+      <span class="step-number">1</span>
+      <div>
+        <p>Open <strong>Terminal</strong></p>
+        <p style="font-size: 0.8rem; color: #888;">Press <kbd style="background:#e5e7eb;padding:0.1rem 0.35rem;border-radius:3px;font-size:0.75rem;">⌘ Space</kbd>, type <strong>Terminal</strong>, press Enter</p>
+      </div>
+    </div>
+
+    <div class="big-step">
+      <span class="step-number">2</span>
+      <div>
+        <p>Paste this command and press Enter:</p>
+        <div class="code-block">
+          <code>cd ~/Downloads/youtube-audio-downloader && make install</code>
+          <button class="copy-btn" onclick="copyText('cd ~/Downloads/youtube-audio-downloader && make install')">Copy</button>
+        </div>
+        <p style="font-size: 0.8rem; color: #888;">If your folder is somewhere else, change the path after <code>cd</code>.</p>
+      </div>
+    </div>
+
+    <p>That's it. It installs Node.js, yt-dlp, FFmpeg, and starts the app in your browser.</p>
+
+    <div class="divider"></div>
+    <p><strong>Every time after that:</strong></p>
+    <div class="code-block">
+      <code>cd ~/Downloads/youtube-audio-downloader && make run</code>
+      <button class="copy-btn" onclick="copyText('cd ~/Downloads/youtube-audio-downloader && make run')">Copy</button>
+    </div>
+
+    <div class="divider"></div>
+    <p><strong>Alternative: drag-and-drop method</strong></p>
+    <ol>
+      <li>Open Terminal</li>
+      <li>Type <code>cd </code> (with a space after it)</li>
+      <li>Drag the project folder from Finder into the Terminal window</li>
+      <li>Press Enter</li>
+      <li>Type <code>make install</code> and press Enter</li>
+    </ol>
+    <p style="font-size: 0.8rem; color: #888;">This works regardless of where you extracted the folder.</p>
+
+    <div class="note note-green">
+      <strong>Why Terminal?</strong> macOS blocks downloaded files from running when you double-click them (Gatekeeper security). Running from Terminal avoids this completely — no workarounds needed.
+    </div>
+  </div>
+</div>
+
+<div class="section" id="windows">
+  <div class="section-header" onclick="toggle('windows')">
+    <span class="icon">🪟</span>
+    <span class="section-title">Windows</span>
+    <span class="arrow" id="arrow-windows">▶</span>
+  </div>
+  <div class="section-body" id="body-windows">
+    <p><strong>Option A: Double-click (easiest)</strong></p>
+    <ol>
+      <li>Extract the zip file</li>
+      <li>Double-click <code>install.bat</code></li>
+      <li>Follow the prompts — it installs everything automatically</li>
+      <li>The app opens in your browser</li>
+    </ol>
+
+    <div class="divider"></div>
+    <p><strong>Every time after that:</strong></p>
+    <p>Double-click <code>start.bat</code> to start the app.</p>
+
+    <div class="divider"></div>
+    <p><strong>Option B: Command Prompt</strong></p>
+    <div class="code-block"><code>install.bat</code><button class="copy-btn" onclick="copyText('install.bat')">Copy</button></div>
+    <p style="font-size: 0.8rem; color: #888;">Then each time to start:</p>
+    <div class="code-block"><code>npm run dev</code><button class="copy-btn" onclick="copyText('npm run dev')">Copy</button></div>
+    <p style="font-size: 0.8rem; color: #888;">Opens at <code>http://localhost:5000</code></p>
+  </div>
+</div>
+
+<div class="section" id="linux">
+  <div class="section-header" onclick="toggle('linux')">
+    <span class="icon">🐧</span>
+    <span class="section-title">Linux</span>
+    <span class="arrow" id="arrow-linux">▶</span>
+  </div>
+  <div class="section-body" id="body-linux">
+    <p><strong>First time:</strong></p>
+    <div class="code-block"><code>cd youtube-audio-downloader && make install</code><button class="copy-btn" onclick="copyText('cd youtube-audio-downloader && make install')">Copy</button></div>
+
+    <div class="divider"></div>
+    <p><strong>Every time after:</strong></p>
+    <div class="code-block"><code>make run</code><button class="copy-btn" onclick="copyText('make run')">Copy</button></div>
+
+    <p style="font-size: 0.8rem; color: #888;">Or alternatively: <code>bash install.sh</code> for the interactive installer. Opens at <code>http://localhost:5000</code>.</p>
+  </div>
+</div>
+
+<div class="section" id="commands">
+  <div class="section-header" onclick="toggle('commands')">
+    <span class="icon">⚡</span>
+    <span class="section-title">All Commands</span>
+    <span class="arrow" id="arrow-commands">▶</span>
+  </div>
+  <div class="section-body" id="body-commands">
+    <p>Once you're in the project folder in Terminal, these commands are available:</p>
+    <table style="width:100%; font-size: 0.85rem; margin-top: 0.5rem; border-collapse: collapse;">
+      <tr style="border-bottom: 1px solid #f0f0f0;">
+        <td style="padding: 0.4rem 0;"><code>make install</code></td>
+        <td style="padding: 0.4rem 0; color: #666;">First-time setup + start</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #f0f0f0;">
+        <td style="padding: 0.4rem 0;"><code>make run</code></td>
+        <td style="padding: 0.4rem 0; color: #666;">Start the app (daily use)</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #f0f0f0;">
+        <td style="padding: 0.4rem 0;"><code>make desktop</code></td>
+        <td style="padding: 0.4rem 0; color: #666;">Build standalone .dmg / .exe</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #f0f0f0;">
+        <td style="padding: 0.4rem 0;"><code>make mobile</code></td>
+        <td style="padding: 0.4rem 0; color: #666;">Build Android / iOS app</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #f0f0f0;">
+        <td style="padding: 0.4rem 0;"><code>make package</code></td>
+        <td style="padding: 0.4rem 0; color: #666;">Create a zip to share</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.4rem 0;"><code>make clean</code></td>
+        <td style="padding: 0.4rem 0; color: #666;">Remove build files</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="section" id="mobile">
+  <div class="section-header" onclick="toggle('mobile')">
+    <span class="icon">📱</span>
+    <span class="section-title">Mobile (Android / iOS)</span>
+    <span class="arrow" id="arrow-mobile">▶</span>
+  </div>
+  <div class="section-body" id="body-mobile">
+    <p>The mobile app connects to a server running on your computer.</p>
+    <ol>
+      <li>Start the server on your computer using the steps above</li>
+      <li>Find your computer's IP address:
+        <div style="margin: 0.4rem 0 0.4rem 0.5rem;">
+          <div class="file-item"><span class="platform-tag">macOS</span> In Terminal: <code>ipconfig getifaddr en0</code></div>
+          <div class="file-item"><span class="platform-tag">Windows</span> In cmd: <code>ipconfig</code> → look for IPv4 Address</div>
+        </div>
+      </li>
+      <li>Open the app on your phone</li>
+      <li>Go to the <strong>Settings</strong> tab</li>
+      <li>Enter your server URL, e.g. <code>http://192.168.1.100:5000</code></li>
+      <li>Make sure phone and computer are on the same WiFi</li>
+    </ol>
+
+    <div class="divider"></div>
+    <p><strong>Building the mobile app:</strong></p>
+    <div class="code-block"><code>make mobile</code><button class="copy-btn" onclick="copyText('make mobile')">Copy</button></div>
+    <p style="font-size: 0.8rem; color: #888;">You'll need Android Studio or Xcode to compile the final app.</p>
+  </div>
+</div>
+
+<div class="section" id="desktop">
+  <div class="section-header" onclick="toggle('desktop')">
+    <span class="icon">🖥️</span>
+    <span class="section-title">Desktop App (.dmg / .exe)</span>
+    <span class="arrow" id="arrow-desktop">▶</span>
+  </div>
+  <div class="section-body" id="body-desktop">
+    <p>Build a standalone desktop app:</p>
+    <div class="code-block"><code>make desktop</code><button class="copy-btn" onclick="copyText('make desktop')">Copy</button></div>
+
+    <div style="margin: 0.5rem 0 0.5rem 0.5rem;">
+      <div class="file-item"><span class="platform-tag">macOS</span> Creates a .dmg in <code>electron-dist/</code></div>
+      <div class="file-item"><span class="platform-tag">Windows</span> Creates a .exe in <code>electron-dist/</code></div>
+    </div>
+
+    <div class="note note-blue">
+      <strong>Note:</strong> yt-dlp and FFmpeg must be installed on the computer running the desktop app.
+    </div>
+  </div>
+</div>
+
+<div class="section" id="apikey">
+  <div class="section-header" onclick="toggle('apikey')">
+    <span class="icon">🔑</span>
+    <span class="section-title">YouTube API Key</span>
+    <span class="arrow" id="arrow-apikey">▶</span>
+  </div>
+  <div class="section-body" id="body-apikey">
+    <p>The app needs a Google API key to search YouTube. The installer asks for it during setup, but you can also set it manually:</p>
+    <ol>
+      <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a></li>
+      <li>Create a project and enable <strong>YouTube Data API v3</strong></li>
+      <li>Create an API key</li>
+      <li>Add it to a <code>.env</code> file in the project folder:</li>
+    </ol>
+    <div class="code-block"><code>GOOGLE_API_KEY=your_key_here</code><button class="copy-btn" onclick="copyText('GOOGLE_API_KEY=your_key_here')">Copy</button></div>
+  </div>
+</div>
+
+<div class="section" id="files">
+  <div class="section-header" onclick="toggle('files')">
+    <span class="icon">📁</span>
+    <span class="section-title">What's in the Folder</span>
+    <span class="arrow" id="arrow-files">▶</span>
+  </div>
+  <div class="section-body" id="body-files">
+    <div style="margin-top: 0;">
+      <div class="file-item"><span class="file-icon">📄</span><span class="file-name">Makefile</span><span class="file-desc">— run <code>make install</code> or <code>make run</code></span></div>
+      <div class="file-item"><span class="file-icon">📦</span><span class="file-name">install.sh</span><span class="file-desc">— interactive installer (macOS / Linux)</span></div>
+      <div class="file-item"><span class="file-icon">📦</span><span class="file-name">install.bat</span><span class="file-desc">— Windows installer (double-click)</span></div>
+      <div class="file-item"><span class="file-icon">▶️</span><span class="file-name">start.bat</span><span class="file-desc">— Windows daily launcher (double-click)</span></div>
+      <div class="file-item"><span class="file-icon">📄</span><span class="file-name">HOW-TO-RUN.html</span><span class="file-desc">— this file</span></div>
+      <div class="file-item"><span class="file-icon">📂</span><span class="file-name">docs/</span><span class="file-desc">— detailed technical documentation</span></div>
+    </div>
+  </div>
+</div>
+
+<p class="footer">For detailed technical docs, see the <code>docs/</code> folder.</p>
+
+<script>
+function toggle(id) {
+  var body = document.getElementById('body-' + id);
+  var arrow = document.getElementById('arrow-' + id);
+  var isOpen = body.classList.contains('open');
+  if (isOpen) {
+    body.classList.remove('open');
+    arrow.classList.remove('open');
+  } else {
+    body.classList.add('open');
+    arrow.classList.add('open');
+  }
+}
+
+function copyText(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text);
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+  var btn = event.target;
+  var orig = btn.textContent;
+  btn.textContent = 'Copied!';
+  setTimeout(function() { btn.textContent = orig; }, 1500);
+}
+</script>
+</body>
+</html>

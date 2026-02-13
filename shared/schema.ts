@@ -67,6 +67,24 @@ export const insertSongSchema = createInsertSchema(songs).omit({
 export type Song = typeof songs.$inferSelect;
 export type InsertSong = z.infer<typeof insertSongSchema>;
 
+/**
+ * YOUTUBE_TRACK_CACHE TABLE
+ * 
+ * Caches YouTube search results for album tracks to avoid repeated API calls.
+ * The cache key is artist + track name combination.
+ */
+export const youtubeTrackCache = pgTable("youtube_track_cache", {
+  id: varchar("id", { length: 64 }).primaryKey(), // Hash of artist + track
+  artistName: text("artist_name").notNull(),
+  trackName: text("track_name").notNull(),
+  youtubeVideoId: varchar("youtube_video_id", { length: 32 }),
+  youtubeTitle: text("youtube_title"),
+  youtubeThumbnail: text("youtube_thumbnail"),
+  cachedAt: timestamp("cached_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type YouTubeTrackCache = typeof youtubeTrackCache.$inferSelect;
+
 // ============================================================================
 // ZOD SCHEMAS (API Validation)
 // ============================================================================

@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# Install Homebrew and dependencies, then relaunch the app
+
+echo ""
+echo "============================================"
+echo "  Installing dependencies..."
+echo "============================================"
+echo ""
+
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+if ! command -v brew &> /dev/null; then
+  echo "Installing Homebrew..."
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  
+  if [[ "$(uname -m)" == "arm64" ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  else
+    eval "$(/usr/local/bin/brew shellenv)"
+  fi
+fi
+
+echo "Installing Node.js, yt-dlp, and FFmpeg..."
+brew install node yt-dlp ffmpeg 2>/dev/null
+
+echo ""
+echo "============================================"
+echo "  Dependencies installed!"
+echo "  Launching the app..."
+echo "============================================"
+echo ""
+
+APP_PATH="$(cd "$(dirname "$0")/../.." && pwd)"
+open "$APP_PATH"

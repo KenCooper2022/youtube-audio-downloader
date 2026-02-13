@@ -17,6 +17,7 @@
  */
 
 import type { SongMetadata } from "@shared/schema";
+import { buildApiUrl } from "./config";
 
 /**
  * INITIALIZE DATABASE
@@ -43,7 +44,7 @@ export async function initDB(): Promise<void> {
  * @param song - Song metadata to save
  */
 export async function saveSong(song: SongMetadata): Promise<void> {
-  const response = await fetch("/api/songs", {
+  const response = await fetch(buildApiUrl("/api/songs"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(song),
@@ -67,7 +68,7 @@ export async function saveSong(song: SongMetadata): Promise<void> {
  * @returns Song record or undefined if not found
  */
 export async function getSong(id: string): Promise<SongMetadata | undefined> {
-  const response = await fetch(`/api/songs/${encodeURIComponent(id)}`);
+  const response = await fetch(buildApiUrl(`/api/songs/${encodeURIComponent(id)}`));
 
   if (response.status === 404) {
     return undefined;
@@ -94,7 +95,7 @@ export async function getSong(id: string): Promise<SongMetadata | undefined> {
  * @returns Song record or undefined if not found
  */
 export async function getSongByVideoId(videoId: string): Promise<SongMetadata | undefined> {
-  const response = await fetch(`/api/songs/video/${encodeURIComponent(videoId)}`);
+  const response = await fetch(buildApiUrl(`/api/songs/video/${encodeURIComponent(videoId)}`));
 
   if (response.status === 404) {
     return undefined;
@@ -119,7 +120,7 @@ export async function getSongByVideoId(videoId: string): Promise<SongMetadata | 
  * @returns Array of all song records
  */
 export async function getAllSongs(): Promise<SongMetadata[]> {
-  const response = await fetch("/api/songs");
+  const response = await fetch(buildApiUrl("/api/songs"));
 
   if (!response.ok) {
     const error = await response.json();
@@ -141,7 +142,7 @@ export async function getAllSongs(): Promise<SongMetadata[]> {
  * @param id - Primary key of song to delete
  */
 export async function deleteSong(id: string): Promise<void> {
-  const response = await fetch(`/api/songs/${encodeURIComponent(id)}`, {
+  const response = await fetch(buildApiUrl(`/api/songs/${encodeURIComponent(id)}`), {
     method: "DELETE",
   });
 
@@ -168,7 +169,7 @@ export async function updateSongMetadata(
   id: string,
   metadata: Partial<SongMetadata>
 ): Promise<void> {
-  const response = await fetch(`/api/songs/${encodeURIComponent(id)}`, {
+  const response = await fetch(buildApiUrl(`/api/songs/${encodeURIComponent(id)}`), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(metadata),

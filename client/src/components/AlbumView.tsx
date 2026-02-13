@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Download, Clock, ImageDown, Disc, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -27,16 +26,20 @@ export function AlbumView({
   downloadProgress,
   downloadedVideos,
 }: AlbumViewProps) {
-  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
   const availableTracks = album.tracks.filter(t => t.available);
   const allAvailableDownloaded = availableTracks.every(
     t => t.youtubeVideoId && downloadedVideos.has(t.youtubeVideoId)
   );
+  
+  // Count tracks currently downloading from this album
+  const downloadingCount = availableTracks.filter(t => {
+    if (!t.youtubeVideoId) return false;
+    const progress = downloadProgress.get(t.youtubeVideoId);
+    return progress?.status === "downloading" || progress?.status === "processing";
+  }).length;
 
-  const handleDownloadAll = async () => {
-    setIsDownloadingAll(true);
-    await onDownloadAll();
-    setIsDownloadingAll(false);
+  const handleDownloadAll = () => {
+    onDownloadAll();
   };
 
   return (
@@ -95,14 +98,14 @@ export function AlbumView({
             {availableTracks.length > 0 && (
               <Button
                 onClick={handleDownloadAll}
-                disabled={isDownloadingAll || allAvailableDownloaded}
+                disabled={allAvailableDownloaded || downloadingCount > 0}
                 className="gap-2"
                 data-testid="button-download-all"
               >
-                {isDownloadingAll ? (
+                {downloadingCount > 0 ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Downloading...
+                    Downloading {downloadingCount} tracks...
                   </>
                 ) : allAvailableDownloaded ? (
                   <>
